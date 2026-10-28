@@ -187,6 +187,7 @@ public final class NetworkSmokeTest {
             + ", tabPlayer=" + (context != null && context.player != null)
             + ", tabConnection=" + (ownedConnection == null ? "null" : "connected=" + ownedConnection.isConnected())
             + ", tabListener=" + (ownedListener == null ? "null" : ownedListener.getClass().getSimpleName())
+            + ", tabListenerOwner=" + (ownedListener instanceof TabOwnedListener owned ? owned.tabby$getTabId() : "unowned")
             + ", clientPendingMatchesTab=" + (context != null && pending == context.pendingConnection);
     }
 
