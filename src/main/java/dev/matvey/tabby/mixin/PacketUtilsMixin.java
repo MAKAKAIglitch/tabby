@@ -15,7 +15,7 @@ public abstract class PacketUtilsMixin {
         method = "ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/util/thread/BlockableEventLoop;)V",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/util/thread/BlockableEventLoop;execute(Ljava/lang/Runnable;)V"
+            target = "Lnet/minecraft/util/thread/BlockableEventLoop;executeIfPossible(Ljava/lang/Runnable;)V"
         ),
         index = 0
     )
