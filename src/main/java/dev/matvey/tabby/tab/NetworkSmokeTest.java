@@ -6,6 +6,9 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import dev.matvey.tabby.mixin.MinecraftAccessor;
+import net.minecraft.network.Connection;
+import net.minecraft.network.PacketListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,8 +81,11 @@ public final class NetworkSmokeTest {
             LOGGER.info("Network smoke test: connecting tab 1 to {}", address);
             phase = Phase.WAIT_FOR_SERVER_B;
             phaseTicks = 0;
+        } else if (phaseTicks % 100 == 0) {
+            logConnectionState(client, "server A login", context(0));
         } else if (phaseTicks > JOIN_TIMEOUT_TICKS) {
-            fail("Tab 0 did not join server A within " + JOIN_TIMEOUT_TICKS + " ticks");
+            fail("Tab 0 did not join server A within " + JOIN_TIMEOUT_TICKS + " ticks: "
+                + connectionState(client, context(0)));
         }
     }
 
@@ -160,6 +166,28 @@ public final class NetworkSmokeTest {
         require(client.level == active.level, "Minecraft.level does not match the active tab");
         require(client.player == active.player, "Minecraft.player does not match the active tab");
         require(client.getConnection() == active.clientConnection, "Minecraft.getConnection() does not match the active tab");
+    }
+
+    private static void logConnectionState(Minecraft client, String phaseName, TabContext context) {
+        LOGGER.info("Network smoke diagnostic [{}]: {}", phaseName, connectionState(client, context));
+    }
+
+    private static String connectionState(Minecraft client, TabContext context) {
+        Connection pending = ((MinecraftAccessor) client).tabby$getPendingConnection();
+        PacketListener pendingListener = pending == null ? null : pending.getPacketListener();
+        Connection ownedConnection = context == null ? null : context.networkConnection;
+        PacketListener ownedListener = ownedConnection == null ? null : ownedConnection.getPacketListener();
+        return "activeTab=" + TabManager.activeId()
+            + ", clientLevel=" + (client.level != null)
+            + ", clientPlayer=" + (client.player != null)
+            + ", clientConnection=" + (client.getConnection() == null ? "null" : client.getConnection().getClass().getSimpleName())
+            + ", pendingConnection=" + (pending == null ? "null" : "connected=" + pending.isConnected())
+            + ", pendingListener=" + (pendingListener == null ? "null" : pendingListener.getClass().getSimpleName())
+            + ", tabLevel=" + (context != null && context.level != null)
+            + ", tabPlayer=" + (context != null && context.player != null)
+            + ", tabConnection=" + (ownedConnection == null ? "null" : "connected=" + ownedConnection.isConnected())
+            + ", tabListener=" + (ownedListener == null ? "null" : ownedListener.getClass().getSimpleName())
+            + ", clientPendingMatchesTab=" + (context != null && pending == context.pendingConnection);
     }
 
     private static boolean isJoined(TabContext context) {
