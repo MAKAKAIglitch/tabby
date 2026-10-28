@@ -15,12 +15,12 @@ Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style
 - Before using Minecraft fields or method signatures, verify them against generated sources and Fabric API 1.21.4 documentation. Do not invent names or signatures.
 - Work only in `MAKAKAIglitch/tabby`. Use one `stage-N-short-description` branch per stage, and merge only accepted stages into `main`.
 - Each stage should have a build check, meaningful commit(s), a push, and a short report.
-- Do not commit binaries other than required source tooling such as the Gradle Wrapper JAR, generated `run/` data, credentials, account data, or local configuration containing logins.
+- Do not commit generated `run/` data, credentials, account data, or local configuration containing logins. The standard Gradle Wrapper JAR is an intentional source-build tool.
 - MIT license.
 
 ## Progress
 
-- [x] Stage 0 — project scaffold committed to `stage-0-scaffold`; CI build/startup check pending.
+- [ ] Stage 0 — scaffold committed to `stage-0-scaffold`; build and client startup acceptance checks pending.
 - [ ] Stage 1 — connection/context prototype without UI; must pass simultaneous-connection acceptance test before continuing.
 - [ ] Stage 2 — tab bar and mouse/keyboard interaction.
 - [ ] Stage 3 — tab lifecycle, labels, disconnect/cleanup, duplicate-connection warning.
