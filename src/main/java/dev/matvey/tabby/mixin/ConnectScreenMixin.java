@@ -11,7 +11,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import javax.annotation.Nullable;
 
 /**
  * Prevents vanilla's eager disconnect from breaking a tab when a duplicate server is opened.
@@ -29,7 +28,7 @@ public abstract class ConnectScreenMixin {
         ServerAddress address,
         ServerData serverData,
         boolean quickPlay,
-        @Nullable TransferState transferState,
+        TransferState transferState,
         CallbackInfo ci
     ) {
         if (TabManager.handleConnectionAttempt(address, serverData)) {
