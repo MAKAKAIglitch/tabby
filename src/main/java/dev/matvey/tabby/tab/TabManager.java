@@ -350,8 +350,20 @@ public final class TabManager {
         }
 
         int selectedId = activeId;
+        Connection nativePendingConnection = ((MinecraftAccessor) client).tabby$getPendingConnection();
+
         for (TabContext context : List.copyOf(TABS.values())) {
             if (context.id() == selectedId) {
+                // Vanilla ticks pendingConnection itself, but the login-to-configuration
+                // transition can clear it before a player/world exists. Keep that active
+                // connection progressing until the play listener has installed the world.
+                if (client.level == null
+                    && client.player == null
+                    && nativePendingConnection == null
+                    && context.networkConnection != null
+                    && context.networkConnection.isConnected()) {
+                    context.networkConnection.tick();
+                }
                 continue;
             }
 
