@@ -91,7 +91,9 @@ public final class TabContext {
         this.hitResult = client.hitResult;
         this.crosshairPickEntity = client.crosshairPickEntity;
         this.cameraEntity = client.cameraEntity;
-        this.screen = client.screen;
+        if (TabManager.shouldCaptureScreenFromClient()) {
+            this.screen = client.screen;
+        }
         this.pendingConnection = ((MinecraftAccessor) client).tabby$getPendingConnection();
 
         ClientPacketListener activeConnection = client.getConnection();

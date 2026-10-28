@@ -5,6 +5,7 @@ import dev.matvey.tabby.mixin.MinecraftAccessor;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -99,6 +100,35 @@ public final class TabManager {
             }
             LOGGER.info("Tabby prototype context-switch smoke test passed.");
         }
+    }
+
+    public static boolean interceptBackgroundScreenChange(Screen screen) {
+        if (client == null) {
+            return false;
+        }
+
+        int contextId = currentContextId();
+        if (contextId < 0 || contextId == activeId) {
+            return false;
+        }
+
+        TabContext context = TABS.get(contextId);
+        if (context == null) {
+            return false;
+        }
+
+        context.screen = screen;
+        LOGGER.debug("Stored background screen {} for tab {}", screen, contextId);
+        return true;
+    }
+
+    public static boolean shouldCaptureScreenFromClient() {
+        if (client == null) {
+            return true;
+        }
+
+        Integer executionId = EXECUTION_CONTEXT.get();
+        return executionId == null || executionId == activeId;
     }
 
     public static void captureCurrentState() {
