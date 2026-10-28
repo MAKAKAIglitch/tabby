@@ -284,9 +284,8 @@ public final class TabManager {
                 continue;
             }
 
-            if (context.packetListener != null && context.networkConnection != null
-                && context.networkConnection.isConnected()) {
-                runIn(context.id(), context.packetListener::tick);
+            if (context.networkConnection != null && context.networkConnection.isConnected()) {
+                runIn(context.id(), context.networkConnection::tick);
             } else if (context.pendingConnection != null && context.pendingConnection.isConnected()) {
                 runIn(context.id(), context.pendingConnection::tick);
             }
