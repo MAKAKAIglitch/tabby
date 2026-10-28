@@ -37,6 +37,9 @@ public final class TabContext {
     public Connection networkConnection;
     public TickablePacketListener packetListener;
     public Connection pendingConnection;
+    public Connection replacingConnection;
+    public String playerName;
+    public boolean connecting;
 
     public LevelRenderer levelRenderer;
     public ParticleEngine particleEngine;
@@ -67,6 +70,9 @@ public final class TabContext {
         context.networkConnection = null;
         context.packetListener = null;
         context.pendingConnection = null;
+        context.replacingConnection = null;
+        context.playerName = null;
+        context.connecting = false;
         context.levelRenderer = new LevelRenderer(
             client,
             client.entityRenderDispatcher,
@@ -98,11 +104,16 @@ public final class TabContext {
         this.pendingConnection = ((MinecraftAccessor) client).tabby$getPendingConnection();
 
         ClientPacketListener activeConnection = client.getConnection();
-        this.clientConnection = activeConnection;
         if (activeConnection != null) {
+            this.clientConnection = activeConnection;
             this.serverData = activeConnection.getServerData();
             this.networkConnection = activeConnection.getConnection();
             this.packetListener = activeConnection;
+        } else if (!this.connecting
+            && (this.networkConnection == null || !this.networkConnection.isConnected())) {
+            this.clientConnection = null;
+            this.networkConnection = null;
+            this.packetListener = null;
         }
     }
 

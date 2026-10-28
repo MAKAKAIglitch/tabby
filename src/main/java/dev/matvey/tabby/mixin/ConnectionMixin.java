@@ -28,4 +28,9 @@ public abstract class ConnectionMixin {
     ) {
         TabManager.onListenerAssigned((Connection) (Object) this, listener);
     }
+
+    @Inject(method = "handleDisconnection()V", at = @At("RETURN"))
+    private void tabby$onDisconnected(CallbackInfo ci) {
+        TabManager.onConnectionDisconnected((Connection) (Object) this);
+    }
 }

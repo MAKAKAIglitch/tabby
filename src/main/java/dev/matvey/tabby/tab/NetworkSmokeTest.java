@@ -160,7 +160,32 @@ public final class NetworkSmokeTest {
         pressShortcut(client, GLFW.GLFW_KEY_TAB);
         require(TabManager.activeId() == 1, "Ctrl+Tab did not restore the second tab");
         validateConnections(client);
-        LOGGER.info("Network smoke test: tab strip clicks, plus/close buttons, and injected Ctrl keyboard shortcuts passed");
+        verifyDuplicateConnectionGuard(client);
+        LOGGER.info("Network smoke test: tab strip interactions, keyboard shortcuts, and duplicate-connection guard passed");
+    }
+
+    private static void verifyDuplicateConnectionGuard(Minecraft client) {
+        require(TabManager.activeId() == 1, "Duplicate-connection test must begin on tab 1");
+        ClientLevel activeLevel = client.level;
+        var activePlayer = client.player;
+        ClientPacketListener activeListener = client.getConnection();
+        int tabCount = TabManager.contexts().size();
+
+        ConnectScreen.startConnecting(
+            client.screen,
+            client,
+            ServerAddress.parseString("127.0.0.1:25565"),
+            new ServerData("Duplicate server A", "127.0.0.1:25565", ServerData.Type.OTHER),
+            false,
+            null
+        );
+
+        require(client.level == activeLevel, "Duplicate attempt disconnected or replaced the active world");
+        require(client.player == activePlayer, "Duplicate attempt replaced the active player");
+        require(client.getConnection() == activeListener, "Duplicate attempt replaced the active listener");
+        require(TabManager.contexts().size() == tabCount, "Duplicate attempt created another tab");
+        validateConnections(client);
+        LOGGER.info("Network smoke test: duplicate server connection was blocked without disconnecting either tab");
     }
 
     private static void pressShortcut(Minecraft client, int key) {
@@ -196,6 +221,22 @@ public final class NetworkSmokeTest {
                 "Tabby network smoke test passed: both connections remained live for {} ticks.",
                 activeTicks
             );
+
+            Connection connectionB = context(1).networkConnection;
+            require(connectionB != null && connectionB.isConnected(), "Server B was not live before close cleanup");
+            TabManager.closeTab(1);
+            require(contextOrNull(1) == null, "Closing tab 1 did not remove its context");
+            require(!connectionB.isConnected(), "Closing tab 1 did not disconnect its network connection");
+            require(isJoined(context(0)), "Closing tab 1 damaged the connection in tab 0");
+            validateConnections(client);
+
+            Connection connectionA = context(0).networkConnection;
+            require(connectionA != null && connectionA.isConnected(), "Server A was not live before final-tab cleanup");
+            TabManager.closeTab(0);
+            require(!connectionA.isConnected(), "Closing the last tab did not disconnect server A");
+            require(TabManager.contexts().size() == 1, "Closing the last tab did not create one menu context");
+            require(client.screen instanceof TitleScreen, "Closing the last tab did not return to the title screen");
+            LOGGER.info("Network smoke test: per-tab disconnect cleanup and final-tab return passed.");
             client.stop();
         }
     }
@@ -254,6 +295,13 @@ public final class NetworkSmokeTest {
             && context.clientConnection != null
             && context.networkConnection != null
             && context.networkConnection.isConnected();
+    }
+
+    private static TabContext contextOrNull(int id) {
+        return TabManager.contexts().stream()
+            .filter(tab -> tab.id() == id)
+            .findFirst()
+            .orElse(null);
     }
 
     private static TabContext context(int id) {

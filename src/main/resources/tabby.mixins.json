@@ -11,7 +11,8 @@
     "MinecraftAccessor",
     "ParticleEngineMixin",
     "KeyboardHandlerMixin",
-    "MouseHandlerMixin"
+    "MouseHandlerMixin",
+    "ConnectScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -6,6 +6,9 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.TickablePacketListener;
@@ -353,12 +356,224 @@ public final class TabManager {
         }
     }
 
+    /**
+     * Called before vanilla's ConnectScreen disconnects the current connection.
+     * Returning true prevents a duplicate attempt from disrupting the existing tab.
+     */
+    public static boolean handleConnectionAttempt(ServerAddress address, ServerData serverData) {
+        if (client == null || address == null || serverData == null) {
+            return false;
+        }
+
+        int targetId = currentContextId();
+        TabContext target = TABS.get(targetId);
+        if (target == null) {
+            return false;
+        }
+
+        String username = client.getUser().getName();
+        for (TabContext existing : TABS.values()) {
+            if (existing.id() == targetId
+                || !username.equals(existing.playerName)
+                || !hasLiveConnectionAttempt(existing)
+                || !sameServer(existing.serverData, address)) {
+                continue;
+            }
+
+            String existingTitle = existing.title();
+            if (existingTitle == null || existingTitle.isBlank()) {
+                existingTitle = address.toString();
+            }
+            SystemToast.add(
+                client.getToastManager(),
+                SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
+                Component.literal("Tabby"),
+                Component.literal("This server is already open in tab '" + existingTitle + "'.")
+            );
+            LOGGER.warn(
+                "Blocked duplicate connection to {} for player {} (already open in tab {})",
+                address,
+                username,
+                existing.id()
+            );
+            return true;
+        }
+
+        Connection oldConnection = target.networkConnection;
+        if (oldConnection == null || (!oldConnection.isConnected() && !oldConnection.isConnecting())) {
+            oldConnection = target.pendingConnection;
+        }
+        target.replacingConnection = oldConnection != null
+            && (oldConnection.isConnected() || oldConnection.isConnecting())
+                ? oldConnection
+                : null;
+        target.serverData = serverData;
+        target.playerName = username;
+        target.connecting = true;
+
+        String title = serverData.name;
+        if (title == null || title.isBlank()) {
+            title = serverData.ip;
+        }
+        target.setTitle(title == null || title.isBlank() ? address.toString() : title);
+        LOGGER.debug("Tab {} is connecting to {}", target.id(), address);
+        return false;
+    }
+
+    private static boolean sameServer(ServerData existingData, ServerAddress address) {
+        if (existingData == null || existingData.ip == null || existingData.ip.isBlank()) {
+            return false;
+        }
+
+        ServerAddress existingAddress = ServerAddress.parseString(existingData.ip);
+        return existingAddress.getPort() == address.getPort()
+            && existingAddress.getHost().equalsIgnoreCase(address.getHost());
+    }
+
+    private static boolean hasLiveConnectionAttempt(TabContext context) {
+        return context.connecting
+            || context.networkConnection != null
+                && (context.networkConnection.isConnected() || context.networkConnection.isConnecting())
+            || context.pendingConnection != null
+                && (context.pendingConnection.isConnected() || context.pendingConnection.isConnecting());
+    }
+
+    private static int uniqueConnectingTabId() {
+        int candidate = -1;
+        for (TabContext context : TABS.values()) {
+            if (!context.connecting) {
+                continue;
+            }
+            if (candidate >= 0) {
+                return -1;
+            }
+            candidate = context.id();
+        }
+        return candidate;
+    }
+
+    public static boolean onScreenChangeRequested(Screen screen) {
+        if (client == null || screen == null || screen instanceof net.minecraft.client.gui.screens.ConnectScreen) {
+            return false;
+        }
+
+        TabContext context = TABS.get(currentContextId());
+        if (context == null || !context.connecting) {
+            return false;
+        }
+
+        if (context.replacingConnection != null
+            && screen instanceof net.minecraft.client.gui.screens.DisconnectedScreen) {
+            // The previous listener may publish a late disconnect screen while the new
+            // ConnectScreen is active. Do not let the stale screen interrupt the new attempt.
+            LOGGER.debug("Suppressed stale disconnect screen while tab {} replaces a connection", context.id());
+            return true;
+        }
+
+        if (context.replacingConnection != null) {
+            return false;
+        }
+
+        if (context.networkConnection == null || !context.networkConnection.isConnected()) {
+            context.connecting = false;
+            LOGGER.debug("Cleared failed or cancelled connection attempt for tab {}", context.id());
+        }
+        return false;
+    }
+
+    public static void onConnectionDisconnected(Connection connection) {
+        Minecraft currentClient = client;
+        if (currentClient == null || connection == null) {
+            return;
+        }
+
+        Runnable cleanup = () -> cleanupDisconnectedConnection(connection);
+        if (currentClient.isSameThread()) {
+            cleanup.run();
+        } else {
+            currentClient.execute(cleanup);
+        }
+    }
+
+    private static void cleanupDisconnectedConnection(Connection connection) {
+        PacketListener disconnectedListener = connection.getPacketListener();
+
+        for (TabContext context : List.copyOf(TABS.values())) {
+            boolean replacingOldConnection = context.connecting && context.replacingConnection == connection;
+            boolean ownsConnection = context.networkConnection == connection
+                || context.pendingConnection == connection
+                || context.replacingConnection == connection
+                || context.clientConnection != null
+                    && context.clientConnection.getConnection() == connection;
+            if (!ownsConnection) {
+                continue;
+            }
+
+            if (context.networkConnection == connection) {
+                context.networkConnection = null;
+            }
+            if (context.pendingConnection == connection) {
+                context.pendingConnection = null;
+            }
+            if (context.clientConnection != null
+                && context.clientConnection.getConnection() == connection) {
+                context.clientConnection = null;
+            }
+            if (context.packetListener == disconnectedListener) {
+                context.packetListener = null;
+            }
+
+            if (replacingOldConnection) {
+                context.replacingConnection = null;
+                context.level = null;
+                context.player = null;
+                context.gameMode = null;
+                if (context.levelRenderer != null) {
+                    context.levelRenderer.setLevel(null);
+                }
+                // Preserve the new attempt's serverData/title and its connecting marker.
+                LOGGER.debug("Released replaced connection from tab {}", context.id());
+                continue;
+            }
+
+            if (context.replacingConnection == connection) {
+                context.replacingConnection = null;
+            }
+            context.connecting = false;
+            context.level = null;
+            context.player = null;
+            context.gameMode = null;
+            if (context.levelRenderer != null) {
+                context.levelRenderer.setLevel(null);
+            }
+
+            LOGGER.info(
+                "Cleared disconnected connection state for tab {} ({})",
+                context.id(),
+                context.title()
+            );
+        }
+
+        synchronized (CONNECTION_OWNERS) {
+            CONNECTION_OWNERS.remove(connection);
+        }
+        if (disconnectedListener != null) {
+            synchronized (LISTENER_OWNERS) {
+                LISTENER_OWNERS.remove(disconnectedListener);
+            }
+        }
+    }
+
     public static void onConnectionCreated(Connection connection) {
         if (connection == null) {
             return;
         }
+        int ownerId = uniqueConnectingTabId();
+        if (ownerId < 0) {
+            ownerId = currentContextId();
+        }
         synchronized (CONNECTION_OWNERS) {
-            CONNECTION_OWNERS.putIfAbsent(connection, currentContextId());
+            CONNECTION_OWNERS.putIfAbsent(connection, ownerId);
         }
     }
 
@@ -397,6 +612,12 @@ public final class TabManager {
                 }
             }
             if (listener instanceof ClientPacketListener playListener) {
+                context.connecting = false;
+                context.replacingConnection = null;
+                context.pendingConnection = null;
+                if (context.playerName == null || context.playerName.isBlank()) {
+                    context.playerName = currentClient.getUser().getName();
+                }
                 context.networkConnection = connection;
                 context.clientConnection = playListener;
                 context.packetListener = playListener;
