@@ -9,7 +9,9 @@
     "ClientPacketListenerMixin",
     "MinecraftMixin",
     "MinecraftAccessor",
-    "ParticleEngineMixin"
+    "ParticleEngineMixin",
+    "KeyboardHandlerMixin",
+    "MouseHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

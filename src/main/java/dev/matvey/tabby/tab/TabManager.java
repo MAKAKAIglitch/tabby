@@ -1,10 +1,7 @@
 package dev.matvey.tabby.tab;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import dev.matvey.tabby.mixin.MinecraftAccessor;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
@@ -13,6 +10,7 @@ import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.TickablePacketListener;
 import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,8 +36,6 @@ public final class TabManager {
     private static Minecraft client;
     private static volatile int activeId = -1;
     private static int nextId;
-    private static KeyMapping createTabKey;
-    private static KeyMapping nextTabKey;
     private static int smokeTestTicks;
 
     private TabManager() {
@@ -55,19 +51,7 @@ public final class TabManager {
         TABS.put(initial.id(), initial);
         activeId = initial.id();
 
-        createTabKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-            "key.tabby.create_test_tab",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_F6,
-            "category.tabby"
-        ));
-        nextTabKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-            "key.tabby.next_test_tab",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_F7,
-            "category.tabby"
-        ));
-
+        TabBar.initialize();
         ClientTickEvents.END_CLIENT_TICK.register(TabManager::onClientTick);
         LOGGER.debug("Initialized tab context {}", initial.id());
     }
@@ -79,12 +63,6 @@ public final class TabManager {
             runPrototypeSmokeTestTick();
         }
 
-        if (createTabKey.consumeClick()) {
-            createTestTab();
-        }
-        if (nextTabKey.consumeClick()) {
-            switchToNext();
-        }
         tickBackgroundConnections();
     }
 
@@ -95,7 +73,7 @@ public final class TabManager {
 
         smokeTestTicks++;
         if (smokeTestTicks == 20) {
-            createTestTab();
+            createTab();
         } else if (smokeTestTicks == 40) {
             switchToNext();
             Screen activeScreen = client.screen;
@@ -158,7 +136,7 @@ public final class TabManager {
         }
     }
 
-    public static void createTestTab() {
+    public static void createTab() {
         if (client == null || TABS.size() >= MAX_PROTOTYPE_TABS) {
             LOGGER.debug("Test tab creation ignored (not initialized or prototype limit reached)");
             return;
@@ -172,6 +150,100 @@ public final class TabManager {
         TabContext context = TabContext.createEmpty(client, nextId++);
         TABS.put(context.id(), context);
         switchTo(context.id());
+    }
+
+    /**
+     * Kept for the network smoke test; normal UI and shortcuts use createTab().
+     */
+    public static void createTestTab() {
+        createTab();
+    }
+
+    public static void closeTab(int tabId) {
+        if (client == null || !TABS.containsKey(tabId)) {
+            return;
+        }
+
+        if (tabId == activeId && TABS.size() > 1) {
+            List<Integer> ids = new ArrayList<>(TABS.keySet());
+            int currentIndex = ids.indexOf(tabId);
+            switchTo(ids.get((currentIndex + 1) % ids.size()));
+        }
+
+        TabContext closing = TABS.remove(tabId);
+        if (closing == null) {
+            return;
+        }
+        disposeTab(closing);
+
+        if (TABS.isEmpty()) {
+            TabContext menu = TabContext.createEmpty(client, nextId++);
+            TABS.put(menu.id(), menu);
+            activeId = menu.id();
+            menu.applyTo(client, false);
+            client.setScreen(menu.screen);
+            menu.captureFrom(client);
+            LOGGER.debug("Closed final tab; returned to main menu context {}", menu.id());
+        } else if (activeId == tabId) {
+            switchTo(TABS.keySet().iterator().next());
+        }
+    }
+
+    private static void disposeTab(TabContext context) {
+        int id = context.id();
+
+        synchronized (CONNECTION_OWNERS) {
+            CONNECTION_OWNERS.entrySet().removeIf(entry -> entry.getValue() == id);
+        }
+        synchronized (LISTENER_OWNERS) {
+            LISTENER_OWNERS.entrySet().removeIf(entry -> entry.getValue() == id);
+        }
+
+        Connection pending = context.pendingConnection;
+        Connection connection = context.networkConnection;
+        if (pending != null && pending != connection) {
+            pending.disconnect(Component.literal("Tab closed"));
+        }
+        if (connection != null) {
+            connection.disconnect(Component.literal("Tab closed"));
+        }
+        if (context.level != null) {
+            context.level.disconnect();
+        }
+        if (context.levelRenderer != null) {
+            context.levelRenderer.close();
+        }
+    }
+
+    public static boolean handleShortcut(int key, int modifiers) {
+        if (client == null || (modifiers & GLFW.GLFW_MOD_CONTROL) == 0) {
+            return false;
+        }
+
+        if (key == GLFW.GLFW_KEY_T) {
+            createTab();
+            return true;
+        }
+        if (key == GLFW.GLFW_KEY_W) {
+            closeTab(activeId);
+            return true;
+        }
+        if (key == GLFW.GLFW_KEY_TAB) {
+            switchToNext();
+            return true;
+        }
+        if (key >= GLFW.GLFW_KEY_1 && key <= GLFW.GLFW_KEY_9) {
+            switchToIndex(key - GLFW.GLFW_KEY_1);
+            return true;
+        }
+        return false;
+    }
+
+    private static void switchToIndex(int index) {
+        List<Integer> ids = new ArrayList<>(TABS.keySet());
+        if (index >= 0 && index < ids.size()) {
+            switchTo(ids.get(index));
+        }
     }
 
     public static void switchToNext() {
@@ -329,6 +401,13 @@ public final class TabManager {
                 context.clientConnection = playListener;
                 context.packetListener = playListener;
                 context.serverData = playListener.getServerData();
+                if (context.serverData != null) {
+                    String serverTitle = context.serverData.name;
+                    if (serverTitle == null || serverTitle.isBlank()) {
+                        serverTitle = context.serverData.ip;
+                    }
+                    context.setTitle(serverTitle == null || serverTitle.isBlank() ? "Server" : serverTitle);
+                }
             }
             LOGGER.debug("Assigned {} to tab {}", listener.getClass().getSimpleName(), ownerId);
         });

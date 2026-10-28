@@ -6,7 +6,7 @@ Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its
 
 **Stage 0 accepted.** The minimal client builds and loads in a Minecraft 1.21.4 startup smoke test.
 
-**Stage 1 networking prototype verified.** All changes are on `main`. The automated dual-server test connected to two local Minecraft 1.21.4 servers, verified separate world/player/connection objects, switched contexts repeatedly, and observed both connections remain live beyond the 2400-tick acceptance threshold (the successful CI run continued to 5200 ticks). The client still has temporary F6/F7 test controls; there is no tab bar/UI yet. Fabric API 0.119.4 does not support initializing a second particle factory registry, so this prototype shares the particle engine and suppresses particle mutations from inactive tabs. Chat/inventory/entity-content isolation and lifecycle cleanup still need deeper tests.
+**Stage 1 networking prototype verified.** The automated dual-server test connected one client to two local Minecraft 1.21.4 servers, verified separate world/player/connection objects, and repeatedly switched tabs while both connections stayed live for at least 2400 ticks. Stage 2 adds the first usable tab strip and Ctrl+T, Ctrl+W, Ctrl+Tab, and Ctrl+1 through Ctrl+9 shortcuts. Fabric API 0.119.4 does not support initializing a second particle factory registry, so the prototype shares the particle engine and suppresses particle mutations from inactive tabs. Chat/inventory/entity-content isolation and complete tab lifecycle cleanup still need deeper tests.
 
 ## Requirements
 
@@ -35,7 +35,7 @@ On Windows:
 
 The first Gradle run downloads the Gradle distribution and required Minecraft/Fabric dependencies. Build output is written to `build/libs/`; generated game files are kept under the ignored `run/` directory.
 
-On the current prototype in `main`, press **F6** to create a temporary test tab and **F7** to switch to the next test tab. These are development-only controls, not the final browser-style interface.
+Use **Ctrl+T** to create a tab, **Ctrl+W** to close the active tab, **Ctrl+Tab** to cycle tabs, and **Ctrl+1** through **Ctrl+9** to select a tab by position. The tab strip includes a title, close control, and plus control.
 
 ## Development workflow
 

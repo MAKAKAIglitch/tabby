@@ -1,5 +1,3 @@
 {
-  "category.tabby": "Tabby",
-  "key.tabby.create_test_tab": "Create test tab (prototype)",
-  "key.tabby.next_test_tab": "Switch to next test tab (prototype)"
+  "category.tabby": "Tabby"
 }
