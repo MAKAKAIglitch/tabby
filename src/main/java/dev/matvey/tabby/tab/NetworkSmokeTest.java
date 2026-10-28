@@ -229,8 +229,11 @@ public final class NetworkSmokeTest {
             TabManager.closeTab(1);
             require(contextOrNull(1) == null, "Closing tab 1 did not remove its context");
             require(!connectionB.isConnected(), "Closing tab 1 did not disconnect its network connection");
-            require(isJoined(context(0)), "Closing tab 1 damaged the connection in tab 0");
-            validateConnections(client);
+            TabContext remainingTab = context(0);
+            require(isJoined(remainingTab), "Closing tab 1 damaged the connection in tab 0");
+            require(client.level == remainingTab.level, "Closing tab 1 changed the remaining active world");
+            require(client.player == remainingTab.player, "Closing tab 1 changed the remaining active player");
+            require(client.getConnection() == remainingTab.clientConnection, "Closing tab 1 changed the remaining active connection");
 
             Connection connectionA = context(0).networkConnection;
             require(connectionA != null && connectionA.isConnected(), "Server A was not live before final-tab cleanup");
