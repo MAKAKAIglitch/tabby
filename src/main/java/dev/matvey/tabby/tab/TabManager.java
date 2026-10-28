@@ -453,7 +453,13 @@ public final class TabManager {
     }
 
     public static boolean onScreenChangeRequested(Screen screen) {
-        if (client == null || screen == null || screen instanceof net.minecraft.client.gui.screens.ConnectScreen) {
+        if (client == null
+            || screen == null
+            || screen instanceof net.minecraft.client.gui.screens.ConnectScreen
+            || screen instanceof net.minecraft.client.gui.screens.ProgressScreen) {
+            // ConnectScreen.startConnecting calls Minecraft.disconnect(), which briefly installs
+            // a ProgressScreen before it installs the new ConnectScreen. Keep the attempt marker
+            // through that vanilla transition so connection ownership remains bound to this tab.
             return false;
         }
 
