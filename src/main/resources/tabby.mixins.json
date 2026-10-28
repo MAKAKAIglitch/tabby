@@ -8,7 +8,8 @@
     "ConnectionMixin",
     "ClientPacketListenerMixin",
     "MinecraftMixin",
-    "MinecraftAccessor"
+    "MinecraftAccessor",
+    "ParticleEngineMixin"
   ],
   "injectors": {
     "defaultRequire": 1

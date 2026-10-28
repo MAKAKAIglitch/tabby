@@ -92,7 +92,14 @@ public final class TabManager {
         smokeTestTicks++;
         if (smokeTestTicks == 20) {
             createTestTab();
-        } else if (smokeTestTicks == 40 || smokeTestTicks == 60 || smokeTestTicks == 80) {
+        } else if (smokeTestTicks == 40) {
+            switchToNext();
+            Screen activeScreen = client.screen;
+            runIn(1, () -> client.setScreen(new net.minecraft.client.gui.screens.TitleScreen()));
+            if (client.screen != activeScreen) {
+                throw new IllegalStateException("Background screen change replaced the active screen");
+            }
+        } else if (smokeTestTicks == 60 || smokeTestTicks == 80) {
             switchToNext();
         } else if (smokeTestTicks == 100) {
             if (TABS.size() != 2 || activeId != 0) {
@@ -120,6 +127,11 @@ public final class TabManager {
         context.screen = screen;
         LOGGER.debug("Stored background screen {} for tab {}", screen, contextId);
         return true;
+    }
+
+    public static boolean isBackgroundContext() {
+        Integer executionId = EXECUTION_CONTEXT.get();
+        return executionId != null && executionId != activeId;
     }
 
     public static boolean shouldCaptureScreenFromClient() {
@@ -181,9 +193,9 @@ public final class TabManager {
 
         try {
             target.applyTo(client, false);
+            activeId = tabId;
             target.levelRenderer.setLevel(target.level);
             target.particleEngine.setLevel(target.level);
-            activeId = tabId;
             client.setScreen(target.screen);
             target.captureFrom(client);
             LOGGER.debug("Switched active tab to {} ({})", target.id(), target.title());

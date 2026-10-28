@@ -20,9 +20,10 @@ import net.minecraft.world.phys.HitResult;
 /**
  * Client state owned by one logical tab.
  *
- * Each tab owns its renderer, particle engine, and GUI state. Minecraft still
- * provides shared low-level renderer resources, but world-dependent render state
- * is kept in the tab's LevelRenderer rather than being swapped through one renderer.
+ * World renderers and GUI state are per-tab. Fabric API 0.119.4 maintains a
+ * singleton particle factory registry, so this prototype shares Minecraft's
+ * ParticleEngine and suppresses particle mutations from background contexts.
+ * Particle effects are transient and are not retained independently per tab.
  */
 public final class TabContext {
     private final int id;
@@ -72,7 +73,7 @@ public final class TabContext {
             client.blockEntityRenderDispatcher,
             client.renderBuffers
         );
-        context.particleEngine = new ParticleEngine(null, client.textureManager);
+        context.particleEngine = client.particleEngine;
         context.gui = new Gui(client);
         context.hitResult = null;
         context.crosshairPickEntity = null;
