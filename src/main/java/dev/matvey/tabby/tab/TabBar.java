@@ -183,6 +183,24 @@ public final class TabBar {
         return new Layout(LEFT_MARGIN, right, plusX, slots, mouseX, mouseY);
     }
 
+    static int stripCenterY() {
+        return BAR_TOP + BAR_HEIGHT / 2;
+    }
+
+    static int plusButtonCenterX(Minecraft client) {
+        return layout(client, TabManager.contexts()).plusX() + PLUS_WIDTH / 2;
+    }
+
+    static int closeButtonCenterX(Minecraft client, int tabId) {
+        Layout layout = layout(client, TabManager.contexts());
+        for (TabSlot slot : layout.tabs()) {
+            if (slot.id() == tabId) {
+                return layout.closeX(slot) + CLOSE_WIDTH / 2;
+            }
+        }
+        return -1;
+    }
+
     private static String truncate(Minecraft client, String text, int maxWidth) {
         if (text == null || text.isBlank()) {
             return "Main Menu";

@@ -11,6 +11,7 @@ import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * Optional end-to-end test used by CI with two local offline-mode servers.
@@ -103,6 +104,7 @@ public final class NetworkSmokeTest {
             background.screen = previousBackgroundScreen;
             TabManager.switchTo(1);
             validateConnections(client);
+            verifyTabStripInteractions(client);
 
             LOGGER.info("Network smoke test: tab 1 joined server B; starting connection-isolation test");
             phase = Phase.SWITCHING;
@@ -111,6 +113,52 @@ public final class NetworkSmokeTest {
             fail("Tab 1 did not join server B within " + JOIN_TIMEOUT_TICKS + " ticks: "
                 + connectionState(client, context(1)));
         }
+    }
+
+    private static void verifyTabStripInteractions(Minecraft client) {
+        require(
+            TabManager.handleShortcut(GLFW.GLFW_KEY_1, GLFW.GLFW_MOD_CONTROL),
+            "Ctrl+1 was not handled"
+        );
+        require(TabManager.activeId() == 0, "Ctrl+1 did not select the first tab");
+
+        require(
+            TabManager.handleShortcut(GLFW.GLFW_KEY_TAB, GLFW.GLFW_MOD_CONTROL),
+            "Ctrl+Tab was not handled"
+        );
+        require(TabManager.activeId() == 1, "Ctrl+Tab did not select the next tab");
+
+        require(
+            TabBar.handleClick(client, 10.0, TabBar.stripCenterY(), GLFW.GLFW_MOUSE_BUTTON_LEFT),
+            "Clicking the first tab was not handled"
+        );
+        require(TabManager.activeId() == 0, "Clicking the first tab did not activate it");
+
+        int plusX = TabBar.plusButtonCenterX(client);
+        require(
+            TabBar.handleClick(client, plusX, TabBar.stripCenterY(), GLFW.GLFW_MOUSE_BUTTON_LEFT),
+            "Clicking the plus button was not handled"
+        );
+        require(TabManager.contexts().size() == 3, "The plus button did not create a third tab");
+        int temporaryTabId = TabManager.activeId();
+        require(temporaryTabId == 2, "The plus button did not activate the newly created tab");
+
+        int closeX = TabBar.closeButtonCenterX(client, temporaryTabId);
+        require(closeX >= 0, "The new tab has no close button");
+        require(
+            TabBar.handleClick(client, closeX, TabBar.stripCenterY(), GLFW.GLFW_MOUSE_BUTTON_LEFT),
+            "Clicking the close button was not handled"
+        );
+        require(TabManager.contexts().size() == 2, "The close button did not remove the third tab");
+        require(TabManager.activeId() == 0, "Closing the active third tab did not select the first remaining tab");
+
+        require(
+            TabManager.handleShortcut(GLFW.GLFW_KEY_TAB, GLFW.GLFW_MOD_CONTROL),
+            "Second Ctrl+Tab was not handled"
+        );
+        require(TabManager.activeId() == 1, "The second Ctrl+Tab did not restore the second tab");
+        validateConnections(client);
+        LOGGER.info("Network smoke test: tab strip click, plus/close buttons, Ctrl+1, and Ctrl+Tab passed");
     }
 
     private static void exerciseConnections(Minecraft client) {
