@@ -116,16 +116,10 @@ public final class NetworkSmokeTest {
     }
 
     private static void verifyTabStripInteractions(Minecraft client) {
-        require(
-            TabManager.handleShortcut(GLFW.GLFW_KEY_1, GLFW.GLFW_MOD_CONTROL),
-            "Ctrl+1 was not handled"
-        );
+        pressShortcut(client, GLFW.GLFW_KEY_1);
         require(TabManager.activeId() == 0, "Ctrl+1 did not select the first tab");
 
-        require(
-            TabManager.handleShortcut(GLFW.GLFW_KEY_TAB, GLFW.GLFW_MOD_CONTROL),
-            "Ctrl+Tab was not handled"
-        );
+        pressShortcut(client, GLFW.GLFW_KEY_TAB);
         require(TabManager.activeId() == 1, "Ctrl+Tab did not select the next tab");
 
         require(
@@ -152,13 +146,27 @@ public final class NetworkSmokeTest {
         require(TabManager.contexts().size() == 2, "The close button did not remove the third tab");
         require(TabManager.activeId() == 0, "Closing the active third tab did not select the first remaining tab");
 
-        require(
-            TabManager.handleShortcut(GLFW.GLFW_KEY_TAB, GLFW.GLFW_MOD_CONTROL),
-            "Second Ctrl+Tab was not handled"
-        );
-        require(TabManager.activeId() == 1, "The second Ctrl+Tab did not restore the second tab");
+        pressShortcut(client, GLFW.GLFW_KEY_T);
+        require(TabManager.contexts().size() == 3, "Ctrl+T did not create a third tab");
+        require(TabManager.activeId() == 2, "Ctrl+T did not activate the new tab");
+        pressShortcut(client, GLFW.GLFW_KEY_W);
+        require(TabManager.contexts().size() == 2, "Ctrl+W did not close the active tab");
+        require(TabManager.activeId() == 0, "Ctrl+W did not select a remaining tab");
+
+        pressShortcut(client, GLFW.GLFW_KEY_TAB);
+        require(TabManager.activeId() == 1, "Ctrl+Tab did not restore the second tab");
         validateConnections(client);
-        LOGGER.info("Network smoke test: tab strip click, plus/close buttons, Ctrl+1, and Ctrl+Tab passed");
+        LOGGER.info("Network smoke test: tab strip clicks, plus/close buttons, and injected Ctrl keyboard shortcuts passed");
+    }
+
+    private static void pressShortcut(Minecraft client, int key) {
+        client.keyboardHandler.keyPress(
+            client.getWindow().getWindow(),
+            key,
+            0,
+            GLFW.GLFW_PRESS,
+            GLFW.GLFW_MOD_CONTROL
+        );
     }
 
     private static void exerciseConnections(Minecraft client) {
