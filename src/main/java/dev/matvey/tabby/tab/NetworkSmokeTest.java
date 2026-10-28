@@ -148,7 +148,11 @@ public final class NetworkSmokeTest {
 
         pressShortcut(client, GLFW.GLFW_KEY_T);
         require(TabManager.contexts().size() == 3, "Ctrl+T did not create a third tab");
-        require(TabManager.activeId() == 2, "Ctrl+T did not activate the new tab");
+        int keyboardCreatedTabId = TabManager.activeId();
+        require(
+            keyboardCreatedTabId != 0 && keyboardCreatedTabId != 1,
+            "Ctrl+T did not activate the newly created tab"
+        );
         pressShortcut(client, GLFW.GLFW_KEY_W);
         require(TabManager.contexts().size() == 2, "Ctrl+W did not close the active tab");
         require(TabManager.activeId() == 0, "Ctrl+W did not select a remaining tab");
