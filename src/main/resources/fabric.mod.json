@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "tabby",
+  "version": "${version}",
+  "name": "Tabby",
+  "description": "Browser-style client tabs for Minecraft 1.21.4.",
+  "authors": [
+    "Matvey"
+  ],
+  "contact": {
+    "sources": "https://github.com/MAKAKAIglitch/tabby"
+  },
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.matvey.tabby.TabbyClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "minecraft": "~1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
