@@ -81,8 +81,6 @@ public final class NetworkSmokeTest {
             LOGGER.info("Network smoke test: connecting tab 1 to {}", address);
             phase = Phase.WAIT_FOR_SERVER_B;
             phaseTicks = 0;
-        } else if (phaseTicks % 100 == 0) {
-            logConnectionState(client, "server A login", context(0));
         } else if (phaseTicks > JOIN_TIMEOUT_TICKS) {
             fail("Tab 0 did not join server A within " + JOIN_TIMEOUT_TICKS + " ticks: "
                 + connectionState(client, context(0)));
@@ -110,7 +108,8 @@ public final class NetworkSmokeTest {
             phase = Phase.SWITCHING;
             phaseTicks = 0;
         } else if (phaseTicks > JOIN_TIMEOUT_TICKS) {
-            fail("Tab 1 did not join server B within " + JOIN_TIMEOUT_TICKS + " ticks");
+            fail("Tab 1 did not join server B within " + JOIN_TIMEOUT_TICKS + " ticks: "
+                + connectionState(client, context(1)));
         }
     }
 
@@ -167,10 +166,6 @@ public final class NetworkSmokeTest {
         require(client.level == active.level, "Minecraft.level does not match the active tab");
         require(client.player == active.player, "Minecraft.player does not match the active tab");
         require(client.getConnection() == active.clientConnection, "Minecraft.getConnection() does not match the active tab");
-    }
-
-    private static void logConnectionState(Minecraft client, String phaseName, TabContext context) {
-        LOGGER.info("Network smoke diagnostic [{}]: {}", phaseName, connectionState(client, context));
     }
 
     private static String connectionState(Minecraft client, TabContext context) {

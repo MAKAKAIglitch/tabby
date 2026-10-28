@@ -22,7 +22,6 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Owns the selected tab and routes client-thread packet tasks to their context.
@@ -35,8 +34,6 @@ public final class TabManager {
     private static final ThreadLocal<Integer> EXECUTION_CONTEXT = new ThreadLocal<>();
     private static final int MAX_PROTOTYPE_TABS = 4;
     private static final boolean SMOKE_TEST_ENABLED = "1".equals(System.getenv("TABBY_SMOKE_TEST"));
-    private static final AtomicInteger NETWORK_TRACE_COUNT = new AtomicInteger();
-    private static int activePrePlayTicks;
 
     private static Minecraft client;
     private static volatile int activeId = -1;
@@ -223,41 +220,13 @@ public final class TabManager {
         }
 
         int ownerId = ownerIdFor(listener);
-        int traceNumber = NetworkSmokeTest.isEnabled() ? NETWORK_TRACE_COUNT.getAndIncrement() : Integer.MAX_VALUE;
-        boolean trace = traceNumber < 100;
-
-        if (trace) {
-            LOGGER.info(
-                "Network trace: queued packet task #{} listener={} owner={} active={} thread={}",
-                traceNumber,
-                listener.getClass().getSimpleName(),
-                ownerId,
-                activeId,
-                Thread.currentThread().getName()
-            );
-        }
-
         if (ownerId < 0) {
-            if (trace) {
-                LOGGER.info("Network trace: running unowned task #{} without context routing", traceNumber);
-            }
             return task;
         }
 
         // Capture the owner when the task is queued, not the active tab at arrival.
         // The active tab may change before Minecraft executes the queued packet task.
-        return () -> {
-            if (trace) {
-                LOGGER.info(
-                    "Network trace: executing packet task #{} owner={} active={} thread={}",
-                    traceNumber,
-                    ownerId,
-                    activeId,
-                    Thread.currentThread().getName()
-                );
-            }
-            runIn(ownerId, task);
-        };
+        return () -> runIn(ownerId, task);
     }
 
     public static void runIn(int tabId, Runnable task) {
@@ -338,16 +307,6 @@ public final class TabManager {
             owned.tabby$setTabId(ownerId);
         }
 
-        if (NetworkSmokeTest.isEnabled()) {
-            LOGGER.info(
-                "Network trace: assigned listener={} owner={} active={} connected={}",
-                listener.getClass().getSimpleName(),
-                ownerId,
-                activeId,
-                connection.isConnected()
-            );
-        }
-
         Minecraft currentClient = client;
         if (currentClient == null) {
             return;
@@ -403,16 +362,6 @@ public final class TabManager {
                     && nativePendingConnection == null
                     && context.networkConnection != null
                     && context.networkConnection.isConnected()) {
-                    activePrePlayTicks++;
-                    if (NetworkSmokeTest.isEnabled() && (activePrePlayTicks == 1 || activePrePlayTicks % 100 == 0)) {
-                        LOGGER.info(
-                            "Network trace: ticking active pre-play connection #{} listener={} owner={} connected={}",
-                            activePrePlayTicks,
-                            context.packetListener == null ? "null" : context.packetListener.getClass().getSimpleName(),
-                            context.packetListener instanceof TabOwnedListener owned ? owned.tabby$getTabId() : "unowned",
-                            context.networkConnection.isConnected()
-                        );
-                    }
                     context.networkConnection.tick();
                 }
                 continue;
