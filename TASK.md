@@ -13,15 +13,15 @@ Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style
 - No required third-party mods; Fabric API is the only mod dependency.
 - Source code and code comments in English; user-facing reports in Russian.
 - Before using Minecraft fields or method signatures, verify them against generated sources and Fabric API 1.21.4 documentation. Do not invent names or signatures.
-- Work only in `MAKAKAIglitch/tabby`. Use one `stage-N-short-description` branch per stage, and merge only accepted stages into `main`.
-- Each stage should have a build check, meaningful commit(s), a push, and a short report.
+- Work only in `MAKAKAIglitch/tabby`; make every implementation and maintenance commit directly on `main`. Do not create stage branches or modify other repositories.
+- Keep meaningful English commits on `main`, push the changes, and report the build/test result after each milestone.
 - Do not commit generated `run/` data, credentials, account data, or local configuration containing logins. The standard Gradle Wrapper JAR is an intentional source-build tool.
 - MIT license.
 
 ## Progress
 
-- [x] Stage 0 — scaffold committed to `stage-0-scaffold`; `build` and client startup smoke test passed in GitHub Actions.
-- [ ] Stage 1 — prototype is being developed on `stage-1-prototype`; simultaneous-connection acceptance is not yet verified. Do not start the UI stage until it passes.
+- [x] Stage 0 — scaffold merged into `main`; build and client startup smoke test passed in GitHub Actions.
+- [ ] Stage 1 — prototype implementation is on `main`; `genSources` and build pass on the last verified prototype revision, but the latest connection-state accessor change is being revalidated. Two-server isolation is not yet verified. Do not start UI until acceptance passes.
 - [ ] Stage 2 — tab bar and mouse/keyboard interaction.
 - [ ] Stage 3 — tab lifecycle, labels, disconnect/cleanup, duplicate-connection warning.
 - [ ] Stage 4 — input/audio/render cleanup, background-tab limit, exit handling, one single-player world maximum.
