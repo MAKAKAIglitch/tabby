@@ -6,13 +6,11 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.TickablePacketListener;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.PacketUtils;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +28,7 @@ public final class TabManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tabby");
     private static final Map<Integer, TabContext> TABS = new LinkedHashMap<>();
     private static final Map<Connection, Integer> CONNECTION_OWNERS = new IdentityHashMap<>();
+    private static final Map<PacketListener, Integer> LISTENER_OWNERS = new IdentityHashMap<>();
     private static final ThreadLocal<Integer> EXECUTION_CONTEXT = new ThreadLocal<>();
     private static final int MAX_PROTOTYPE_TABS = 4;
 
@@ -131,13 +130,14 @@ public final class TabManager {
             target.applyTo(client, false);
             target.levelRenderer.setLevel(target.level);
             target.particleEngine.setLevel(target.level);
-            client.setScreen(target.screen);
             activeId = tabId;
+            client.setScreen(target.screen);
             target.captureFrom(client);
             LOGGER.debug("Switched active tab to {} ({})", target.id(), target.title());
         } catch (RuntimeException | Error exception) {
             LOGGER.debug("Failed to switch to tab {}", tabId, exception);
             if (previous != null) {
+                activeId = previous.id();
                 previous.applyTo(client, false);
                 client.setScreen(previous.screen);
             }
@@ -191,14 +191,20 @@ public final class TabManager {
             LOGGER.debug("Packet task failed in tab {}", tabId, exception);
             throw exception;
         } finally {
-            target.captureFrom(client);
-            if (previous != null) {
-                previous.applyTo(client, true);
-            }
-            if (previousExecutionId == null) {
-                EXECUTION_CONTEXT.remove();
-            } else {
-                EXECUTION_CONTEXT.set(previousExecutionId);
+            try {
+                target.captureFrom(client);
+            } finally {
+                try {
+                    if (previous != null) {
+                        previous.applyTo(client, true);
+                    }
+                } finally {
+                    if (previousExecutionId == null) {
+                        EXECUTION_CONTEXT.remove();
+                    } else {
+                        EXECUTION_CONTEXT.set(previousExecutionId);
+                    }
+                }
             }
         }
     }
@@ -220,6 +226,9 @@ public final class TabManager {
         final int ownerId;
         synchronized (CONNECTION_OWNERS) {
             ownerId = CONNECTION_OWNERS.computeIfAbsent(connection, ignored -> currentContextId());
+        }
+        synchronized (LISTENER_OWNERS) {
+            LISTENER_OWNERS.put(listener, ownerId);
         }
 
         if (listener instanceof TabOwnedListener owned) {
@@ -254,12 +263,9 @@ public final class TabManager {
             return owned.tabby$getTabId();
         }
 
-        if (listener instanceof ClientCommonPacketListenerImpl common) {
-            synchronized (CONNECTION_OWNERS) {
-                return CONNECTION_OWNERS.getOrDefault(common.getConnection(), -1);
-            }
+        synchronized (LISTENER_OWNERS) {
+            return LISTENER_OWNERS.getOrDefault(listener, -1);
         }
-        return -1;
     }
 
     private static void tickBackgroundConnections() {
