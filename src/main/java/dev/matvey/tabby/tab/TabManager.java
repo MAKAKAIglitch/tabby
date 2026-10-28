@@ -32,12 +32,14 @@ public final class TabManager {
     private static final Map<PacketListener, Integer> LISTENER_OWNERS = new IdentityHashMap<>();
     private static final ThreadLocal<Integer> EXECUTION_CONTEXT = new ThreadLocal<>();
     private static final int MAX_PROTOTYPE_TABS = 4;
+    private static final boolean SMOKE_TEST_ENABLED = "1".equals(System.getenv("TABBY_SMOKE_TEST"));
 
     private static Minecraft client;
     private static volatile int activeId = -1;
     private static int nextId;
     private static KeyMapping createTabKey;
     private static KeyMapping nextTabKey;
+    private static int smokeTestTicks;
 
     private TabManager() {
     }
@@ -70,6 +72,8 @@ public final class TabManager {
     }
 
     private static void onClientTick(Minecraft minecraft) {
+        runPrototypeSmokeTestTick();
+
         if (createTabKey.consumeClick()) {
             createTestTab();
         }
@@ -77,6 +81,24 @@ public final class TabManager {
             switchToNext();
         }
         tickBackgroundConnections();
+    }
+
+    private static void runPrototypeSmokeTestTick() {
+        if (!SMOKE_TEST_ENABLED) {
+            return;
+        }
+
+        smokeTestTicks++;
+        if (smokeTestTicks == 20) {
+            createTestTab();
+        } else if (smokeTestTicks == 40 || smokeTestTicks == 60 || smokeTestTicks == 80) {
+            switchToNext();
+        } else if (smokeTestTicks == 100) {
+            if (TABS.size() != 2 || activeId != 0) {
+                throw new IllegalStateException("Tabby prototype context-switch smoke test failed");
+            }
+            LOGGER.info("Tabby prototype context-switch smoke test passed.");
+        }
     }
 
     public static void captureCurrentState() {

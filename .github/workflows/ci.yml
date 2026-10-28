@@ -38,12 +38,14 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 180s xvfb-run -a ./gradlew --no-daemon runClient 2>&1 | tee runclient.log
+          timeout 75s env TABBY_SMOKE_TEST=1 xvfb-run -a ./gradlew --no-daemon runClient 2>&1 | tee runclient.log
           status=${PIPESTATUS[0]}
           set -e
 
-          if [ "$status" -eq 124 ] && grep -Fq "Tabby initialized for Minecraft 1.21.4." runclient.log; then
-            echo "The client stayed running until the smoke-test timeout and loaded Tabby."
+          if [ "$status" -eq 124 ] \
+            && grep -Fq "Tabby initialized for Minecraft 1.21.4." runclient.log \
+            && grep -Fq "Tabby prototype context-switch smoke test passed." runclient.log; then
+            echo "The client loaded Tabby and repeatedly switched two prototype contexts."
             exit 0
           fi
 
