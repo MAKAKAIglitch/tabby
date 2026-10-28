@@ -94,7 +94,7 @@ public final class TabContext {
         this.screen = client.screen;
         this.pendingConnection = ((MinecraftAccessor) client).tabby$getPendingConnection();
 
-        ClientPacketListener activeConnection = ((MinecraftAccessor) client).tabby$getClientConnection();
+        ClientPacketListener activeConnection = client.getConnection();
         this.clientConnection = activeConnection;
         if (activeConnection != null) {
             this.serverData = activeConnection.getServerData();
@@ -107,7 +107,6 @@ public final class TabContext {
         client.level = this.level;
         client.player = this.player;
         client.gameMode = this.gameMode;
-        ((MinecraftAccessor) client).tabby$setClientConnection(this.clientConnection);
         client.levelRenderer = this.levelRenderer;
         client.particleEngine = this.particleEngine;
         client.gui = this.gui;
