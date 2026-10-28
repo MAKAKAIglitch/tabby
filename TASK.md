@@ -2,7 +2,7 @@
 
 ## Goal
 
-Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style tabs in a single Minecraft client and account. Each network tab should retain its own world, player, GUI, and server connection while another tab is active.
+Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style tabs in a single Minecraft client and account. Each network tab should retain its own world, player, GUI, and server connection while another tab is active. The current prototype shares the particle engine because Fabric API's particle factory registry cannot be initialized a second time; background particle effects are suppressed.
 
 ## Fixed constraints
 
@@ -21,7 +21,7 @@ Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style
 ## Progress
 
 - [x] Stage 0 — scaffold merged into `main`; build and client startup smoke test passed in GitHub Actions.
-- [ ] Stage 1 — prototype implementation is on `main`; `genSources` and build pass on the last verified prototype revision, but the latest connection-state accessor change is being revalidated. Two-server isolation is not yet verified. Do not start UI until acceptance passes.
+- [ ] Stage 1 — prototype implementation is on `main`; the two-context and background-screen smoke test passes. The automated two-server test is now being added and has not yet passed. Do not start UI until the two-server acceptance test passes.
 - [ ] Stage 2 — tab bar and mouse/keyboard interaction.
 - [ ] Stage 3 — tab lifecycle, labels, disconnect/cleanup, duplicate-connection warning.
 - [ ] Stage 4 — input/audio/render cleanup, background-tab limit, exit handling, one single-player world maximum.

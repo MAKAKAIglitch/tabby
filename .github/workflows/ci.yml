@@ -3,7 +3,7 @@ name: Build and client smoke test
 on:
   push:
     branches:
-      - "**"
+      - "main"
   pull_request:
     branches:
       - "**"
@@ -34,20 +34,109 @@ jobs:
       - name: Build mod
         run: ./gradlew --no-daemon build
 
-      - name: Launch Minecraft client and verify Tabby initialization
+      - name: Start two offline-mode Minecraft test servers
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/tabby-test-servers"
+          mkdir -p "$root/a" "$root/b"
+          echo "TABBY_SERVER_A_PID_FILE=$root/a/server.pid" >> "$GITHUB_ENV"
+          echo "TABBY_SERVER_B_PID_FILE=$root/b/server.pid" >> "$GITHUB_ENV"
+
+          manifest_url="$(curl -fsSL https://piston-meta.mojang.com/mc/game/version_manifest_v2.json | jq -r '.versions[] | select(.id == "1.21.4") | .url')"
+          test -n "$manifest_url" && test "$manifest_url" != "null"
+          version_meta="$(curl -fsSL "$manifest_url")"
+          server_url="$(jq -r '.downloads.server.url' <<< "$version_meta")"
+          server_sha1="$(jq -r '.downloads.server.sha1' <<< "$version_meta")"
+          curl -fL --retry 3 "$server_url" -o "$root/server.jar"
+          echo "$server_sha1  $root/server.jar" | sha1sum --check -
+
+          start_server() {
+            local dir="$1"
+            local port="$2"
+            local world="$3"
+            local seed="$4"
+            local motd="$5"
+
+            cp "$root/server.jar" "$dir/server.jar"
+            printf 'eula=true\n' > "$dir/eula.txt"
+            cat > "$dir/server.properties" <<EOF
+          server-ip=127.0.0.1
+          server-port=$port
+          online-mode=false
+          enforce-secure-profile=false
+          motd=$motd
+          level-name=$world
+          level-seed=$seed
+          gamemode=creative
+          difficulty=peaceful
+          max-players=4
+          view-distance=4
+          simulation-distance=4
+          spawn-protection=0
+          EOF
+            (
+              cd "$dir"
+              nohup java -Xms256M -Xmx768M -jar server.jar nogui > server.log 2>&1 < /dev/null &
+              echo $! > server.pid
+            )
+          }
+
+          start_server "$root/a" 25565 "tabby-world-a" 12104 "Tabby CI A"
+          start_server "$root/b" 25566 "tabby-world-b" 12105 "Tabby CI B"
+
+          for attempt in $(seq 1 120); do
+            ready_a=0
+            ready_b=0
+            grep -q 'Done (' "$root/a/server.log" && ready_a=1 || true
+            grep -q 'Done (' "$root/b/server.log" && ready_b=1 || true
+            if [ "$ready_a" -eq 1 ] && [ "$ready_b" -eq 1 ]; then
+              echo "Both offline-mode test servers are ready."
+              exit 0
+            fi
+            for server_dir in "$root/a" "$root/b"; do
+              if [ -f "$server_dir/server.pid" ] && ! kill -0 "$(cat "$server_dir/server.pid")" 2>/dev/null; then
+                echo "Test server exited unexpectedly: $server_dir"
+                tail -n 100 "$server_dir/server.log" || true
+                exit 1
+              fi
+            done
+            sleep 1
+          done
+
+          echo "Timed out waiting for the test servers."
+          tail -n 100 "$root/a/server.log" || true
+          tail -n 100 "$root/b/server.log" || true
+          exit 1
+
+      - name: Launch Minecraft client and verify both connections
         shell: bash
         run: |
           set +e
-          timeout 75s env TABBY_SMOKE_TEST=1 xvfb-run -a ./gradlew --no-daemon runClient 2>&1 | tee runclient.log
+          timeout 300s env TABBY_NETWORK_SMOKE_TEST=1 xvfb-run -a ./gradlew --no-daemon runClient 2>&1 | tee network-runclient.log
           status=${PIPESTATUS[0]}
           set -e
 
           if [ "$status" -eq 124 ] \
-            && grep -Fq "Tabby initialized for Minecraft 1.21.4." runclient.log \
-            && grep -Fq "Tabby prototype context-switch smoke test passed." runclient.log; then
-            echo "The client loaded Tabby and repeatedly switched two prototype contexts."
+            && grep -Fq "Tabby initialized for Minecraft 1.21.4." network-runclient.log \
+            && grep -Fq "Tabby network smoke test passed: both connections remained live for 2400 ticks." network-runclient.log; then
+            echo "Both local offline-mode connections stayed live while contexts were switched for several minutes."
             exit 0
           fi
 
-          echo "Client smoke test failed (exit code: $status)."
+          echo "Dual-connection client test failed (exit code: $status)."
           exit 1
+
+      - name: Stop local test servers
+        if: always()
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/tabby-test-servers"
+          for server_dir in "$root/a" "$root/b"; do
+            if [ -f "$server_dir/server.log" ]; then
+              tail -n 20 "$server_dir/server.log" || true
+            fi
+            if [ -f "$server_dir/server.pid" ]; then
+              kill "$(cat "$server_dir/server.pid")" 2>/dev/null || true
+            fi
+          done

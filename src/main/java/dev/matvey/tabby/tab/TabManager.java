@@ -73,7 +73,11 @@ public final class TabManager {
     }
 
     private static void onClientTick(Minecraft minecraft) {
-        runPrototypeSmokeTestTick();
+        if (NetworkSmokeTest.isEnabled()) {
+            NetworkSmokeTest.tick(minecraft);
+        } else {
+            runPrototypeSmokeTestTick();
+        }
 
         if (createTabKey.consumeClick()) {
             createTestTab();
