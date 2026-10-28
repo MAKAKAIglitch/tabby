@@ -4,7 +4,9 @@ Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its
 
 ## Current status
 
-**Stage 0 accepted.** The minimal client builds and loads in a Minecraft 1.21.4 startup smoke test. Stage 1 prototype work is isolated on `stage-1-prototype`; simultaneous connections have not passed acceptance yet, and the UI is intentionally not implemented.
+**Stage 0 accepted.** The minimal client builds and loads in a Minecraft 1.21.4 startup smoke test.
+
+**Stage 1 prototype (unverified).** The `stage-1-prototype` branch adds temporary F6/F7 test controls, per-tab world/player/GUI state, separate world renderers and particle engines, listener ownership, packet-task context switching, and background listener/connection ticks. This is experimental networking code; two-server isolation has not passed acceptance, and no tab bar/UI has been implemented.
 
 ## Requirements
 
@@ -32,6 +34,8 @@ On Windows:
 ```
 
 The first Gradle run downloads the Gradle distribution and required Minecraft/Fabric dependencies. Build output is written to `build/libs/`; generated game files are kept under the ignored `run/` directory.
+
+On the Stage 1 prototype branch, press **F6** to create a temporary test tab and **F7** to switch to the next test tab. These are development-only controls, not the final browser-style interface.
 
 ## Development workflow
 
