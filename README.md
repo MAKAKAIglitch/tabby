@@ -4,7 +4,7 @@ Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its
 
 ## Current status
 
-**Stage 0 accepted — project scaffold.** `./gradlew build` and a Minecraft client startup smoke test passed in GitHub Actions. The mod entry point and build configuration are in place; tab switching and multiple simultaneous server connections are not implemented yet.
+**Stage 0 accepted.** The minimal client builds and loads in a Minecraft 1.21.4 startup smoke test. Stage 1 prototype work is isolated on `stage-1-prototype`; simultaneous connections have not passed acceptance yet, and the UI is intentionally not implemented.
 
 ## Requirements
 

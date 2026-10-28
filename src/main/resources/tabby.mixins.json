@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.matvey.tabby.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "PacketUtilsMixin",
+    "ConnectionMixin",
+    "ClientPacketListenerMixin",
+    "MinecraftMixin",
+    "MinecraftAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -17,6 +17,10 @@
       "dev.matvey.tabby.TabbyClient"
     ]
   },
+  "accessWidener": "tabby.accesswidener",
+  "mixins": [
+    "tabby.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.16.14",
     "minecraft": "~1.21.4",

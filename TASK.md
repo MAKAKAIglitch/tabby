@@ -21,7 +21,7 @@ Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style
 ## Progress
 
 - [x] Stage 0 — scaffold committed to `stage-0-scaffold`; `build` and client startup smoke test passed in GitHub Actions.
-- [ ] Stage 1 — connection/context prototype without UI; must pass simultaneous-connection acceptance test before continuing.
+- [ ] Stage 1 — prototype is being developed on `stage-1-prototype`; simultaneous-connection acceptance is not yet verified. Do not start the UI stage until it passes.
 - [ ] Stage 2 — tab bar and mouse/keyboard interaction.
 - [ ] Stage 3 — tab lifecycle, labels, disconnect/cleanup, duplicate-connection warning.
 - [ ] Stage 4 — input/audio/render cleanup, background-tab limit, exit handling, one single-player world maximum.
