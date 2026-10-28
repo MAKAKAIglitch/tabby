@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
@@ -246,12 +247,16 @@ public final class TabManager {
                 return;
             }
 
-            context.networkConnection = connection;
-            if (listener instanceof TickablePacketListener tickable) {
-                context.packetListener = tickable;
+            if (listener instanceof ClientCommonPacketListenerImpl) {
+                context.networkConnection = connection;
+                if (listener instanceof TickablePacketListener tickable) {
+                    context.packetListener = tickable;
+                }
             }
             if (listener instanceof ClientPacketListener playListener) {
+                context.networkConnection = connection;
                 context.clientConnection = playListener;
+                context.packetListener = playListener;
                 context.serverData = playListener.getServerData();
             }
             LOGGER.debug("Assigned {} to tab {}", listener.getClass().getSimpleName(), ownerId);
@@ -275,17 +280,16 @@ public final class TabManager {
 
         int selectedId = activeId;
         for (TabContext context : List.copyOf(TABS.values())) {
-            if (context.id() == selectedId || context.packetListener == null || context.networkConnection == null) {
-                continue;
-            }
-            if (!context.networkConnection.isConnected()) {
+            if (context.id() == selectedId) {
                 continue;
             }
 
-            runIn(context.id(), () -> {
-                context.packetListener.tick();
-                context.networkConnection.tick();
-            });
+            if (context.packetListener != null && context.networkConnection != null
+                && context.networkConnection.isConnected()) {
+                runIn(context.id(), context.packetListener::tick);
+            } else if (context.pendingConnection != null && context.pendingConnection.isConnected()) {
+                runIn(context.id(), context.pendingConnection::tick);
+            }
         }
     }
 
