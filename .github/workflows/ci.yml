@@ -117,10 +117,10 @@ jobs:
           status=${PIPESTATUS[0]}
           set -e
 
-          if [ "$status" -eq 124 ] \
+          if [ "$status" -eq 0 ] \
             && grep -Fq "Tabby initialized for Minecraft 1.21.4." network-runclient.log \
             && grep -Fq "Tabby network smoke test passed: both connections remained live for 2400 ticks." network-runclient.log; then
-            echo "Both local offline-mode connections stayed live while contexts were switched for several minutes."
+            echo "Both local offline-mode connections stayed live for 2400 ticks; the client exited cleanly after the test."
             exit 0
           fi
 

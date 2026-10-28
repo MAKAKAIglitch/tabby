@@ -137,6 +137,7 @@ public final class NetworkSmokeTest {
                 "Tabby network smoke test passed: both connections remained live for {} ticks.",
                 activeTicks
             );
+            client.stop();
         }
     }
 
