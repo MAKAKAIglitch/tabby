@@ -220,9 +220,12 @@ public final class TabManager {
         }
 
         int ownerId = ownerIdFor(listener);
-        if (ownerId < 0 || ownerId == currentContextId()) {
+        if (ownerId < 0) {
             return task;
         }
+
+        // Capture the owner when the task is queued, not the active tab at arrival.
+        // The active tab may change before Minecraft executes the queued packet task.
         return () -> runIn(ownerId, task);
     }
 
