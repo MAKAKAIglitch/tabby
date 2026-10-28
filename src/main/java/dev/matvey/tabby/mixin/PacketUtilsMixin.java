@@ -1,10 +1,9 @@
 package dev.matvey.tabby.mixin;
 
+import com.llamalad7.mixinextras.sugar.Local;
 import dev.matvey.tabby.tab.TabManager;
 import net.minecraft.network.PacketListener;
-import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketUtils;
-import net.minecraft.util.thread.BlockableEventLoop;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
@@ -21,9 +20,7 @@ public abstract class PacketUtilsMixin {
     )
     private static Runnable tabby$wrapPacketTask(
         Runnable task,
-        Packet<?> packet,
-        PacketListener listener,
-        BlockableEventLoop<?> executor
+        @Local(argsOnly = true) PacketListener listener
     ) {
         return TabManager.wrapPacketTask(listener, task);
     }
