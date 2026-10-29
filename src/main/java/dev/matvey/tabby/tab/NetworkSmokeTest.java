@@ -166,7 +166,8 @@ public final class NetworkSmokeTest {
         require(TabManager.activeId() == 1, "Ctrl+Tab did not restore the second tab");
         validateConnections(client);
         verifyDuplicateConnectionGuard(client);
-        LOGGER.info("Network smoke test: tab strip interactions, keyboard shortcuts, and duplicate-connection guard passed");
+        verifyStabilityControls(client);
+        LOGGER.info("Network smoke test: tab strip, duplicate guard, key reset, tab limit, and single-player guard passed");
     }
 
     private static void verifyStabilityControls(Minecraft client) {
