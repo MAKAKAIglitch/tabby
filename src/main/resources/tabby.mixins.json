@@ -9,6 +9,7 @@
     "ClientPacketListenerMixin",
     "MinecraftMixin",
     "MinecraftAccessor",
+    "ChatComponentAccessor",
     "ParticleEngineMixin",
     "KeyboardHandlerMixin",
     "MouseHandlerMixin",

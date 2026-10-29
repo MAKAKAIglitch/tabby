@@ -12,10 +12,25 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import dev.matvey.tabby.mixin.ChatComponentAccessor;
 import dev.matvey.tabby.mixin.MinecraftAccessor;
+import net.minecraft.client.GuiMessage;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.lwjgl.glfw.GLFW;
@@ -30,11 +45,17 @@ public final class NetworkSmokeTest {
     private static final int JOIN_TIMEOUT_TICKS = 1200;
     private static final int REQUIRED_SWITCH_TICKS = 2400;
     private static final int SWITCH_INTERVAL_TICKS = 40;
+    private static final int CONTENT_TIMEOUT_TICKS = 400;
+    private static final String CHAT_A_MARKER = "TABBY_CHAT_A_MARKER";
+    private static final String CHAT_B_MARKER = "TABBY_CHAT_B_MARKER";
+    private static final String ENTITY_A_MARKER = "TABBY_ENTITY_A_MARKER";
+    private static final String ENTITY_B_MARKER = "TABBY_ENTITY_B_MARKER";
 
     private enum Phase {
         START_SERVER_A,
         WAIT_FOR_SERVER_A,
         WAIT_FOR_SERVER_B,
+        WAIT_FOR_CONTENT_ISOLATION,
         SWITCHING,
         START_SINGLEPLAYER,
         WAIT_FOR_SINGLEPLAYER,
@@ -75,6 +96,7 @@ public final class NetworkSmokeTest {
             case START_SERVER_A -> startServerA(client);
             case WAIT_FOR_SERVER_A -> waitForServerA(client);
             case WAIT_FOR_SERVER_B -> waitForServerB(client);
+            case WAIT_FOR_CONTENT_ISOLATION -> waitForContentIsolation(client);
             case SWITCHING -> exerciseConnections(client);
             case START_SINGLEPLAYER -> startSingleplayer(client);
             case WAIT_FOR_SINGLEPLAYER -> waitForSingleplayer(client);
@@ -134,13 +156,137 @@ public final class NetworkSmokeTest {
             validateConnections(client);
             verifyTabStripInteractions(client);
 
-            LOGGER.info("Network smoke test: tab 1 joined server B; starting connection-isolation test");
-            phase = Phase.SWITCHING;
+            prepareContentIsolation();
+            LOGGER.info("Network smoke test: seeded different chat messages, inventory items, and named entities on both servers");
+            phase = Phase.WAIT_FOR_CONTENT_ISOLATION;
             phaseTicks = 0;
         } else if (phaseTicks > JOIN_TIMEOUT_TICKS) {
             fail("Tab 1 did not join server B within " + JOIN_TIMEOUT_TICKS + " ticks: "
                 + connectionState(client, context(1)));
         }
+    }
+
+    private static void prepareContentIsolation() {
+        require(isJoined(context(0)) && isJoined(context(1)),
+            "Both network tabs must be joined before content-isolation fixtures are prepared");
+
+        runRconCommand("TABBY_RCON_PORT_A", 25575, "give @a minecraft:diamond 1");
+        runRconCommand("TABBY_RCON_PORT_B", 25576, "give @a minecraft:emerald 1");
+        runRconCommand("TABBY_RCON_PORT_A", 25575,
+            "tellraw @a {\"text\":\"" + CHAT_A_MARKER + "\"}");
+        runRconCommand("TABBY_RCON_PORT_B", 25576,
+            "tellraw @a {\"text\":\"" + CHAT_B_MARKER + "\"}");
+        runRconCommand("TABBY_RCON_PORT_A", 25575,
+            "execute as @a at @s run summon minecraft:armor_stand ~ ~ ~ {CustomName:'{\"text\":\"" + ENTITY_A_MARKER + "\"}',CustomNameVisible:1b}");
+        runRconCommand("TABBY_RCON_PORT_B", 25576,
+            "execute as @a at @s run summon minecraft:armor_stand ~ ~ ~ {CustomName:'{\"text\":\"" + ENTITY_B_MARKER + "\"}',CustomNameVisible:1b}");
+    }
+
+    private static void waitForContentIsolation(Minecraft client) {
+        phaseTicks++;
+        validateNoCrossContamination();
+
+        if (contentFixturesReady()) {
+            validateContentIsolation();
+            LOGGER.info("Network smoke test: chat, inventory, and named-entity state remained isolated between server A and server B");
+            phase = Phase.SWITCHING;
+            phaseTicks = 0;
+            activeTicks = 0;
+        } else if (phaseTicks > CONTENT_TIMEOUT_TICKS) {
+            fail("Timed out waiting for distinct chat/inventory/entity fixtures: " + contentState());
+        }
+    }
+
+    private static boolean contentFixturesReady() {
+        TabContext serverA = context(0);
+        TabContext serverB = context(1);
+        return hasItem(serverA, Items.DIAMOND)
+            && hasChatMarker(serverA, CHAT_A_MARKER)
+            && hasNamedEntity(serverA, ENTITY_A_MARKER)
+            && hasItem(serverB, Items.EMERALD)
+            && hasChatMarker(serverB, CHAT_B_MARKER)
+            && hasNamedEntity(serverB, ENTITY_B_MARKER);
+    }
+
+    private static void validateNoCrossContamination() {
+        TabContext serverA = contextOrNull(0);
+        TabContext serverB = contextOrNull(1);
+        if (serverA == null || serverB == null) {
+            return;
+        }
+
+        require(!hasItem(serverA, Items.EMERALD), "Server B's emerald appeared in server A's inventory");
+        require(!hasItem(serverB, Items.DIAMOND), "Server A's diamond appeared in server B's inventory");
+        require(!hasChatMarker(serverA, CHAT_B_MARKER), "Server B's chat message appeared in server A's chat history");
+        require(!hasChatMarker(serverB, CHAT_A_MARKER), "Server A's chat message appeared in server B's chat history");
+        require(!hasNamedEntity(serverA, ENTITY_B_MARKER), "Server B's named entity appeared in server A's world");
+        require(!hasNamedEntity(serverB, ENTITY_A_MARKER), "Server A's named entity appeared in server B's world");
+    }
+
+    private static void validateContentIsolation() {
+        TabContext serverA = context(0);
+        TabContext serverB = context(1);
+        require(isJoined(serverA) && isJoined(serverB), "Content-isolation validation requires both live server contexts");
+
+        require(hasItem(serverA, Items.DIAMOND), "Server A's inventory did not receive its diamond fixture");
+        require(!hasItem(serverA, Items.EMERALD), "Server B's emerald appeared in server A's inventory");
+        require(hasItem(serverB, Items.EMERALD), "Server B's inventory did not receive its emerald fixture");
+        require(!hasItem(serverB, Items.DIAMOND), "Server A's diamond appeared in server B's inventory");
+
+        require(hasChatMarker(serverA, CHAT_A_MARKER), "Server A's chat history did not receive its marker");
+        require(!hasChatMarker(serverA, CHAT_B_MARKER), "Server B's chat message appeared in server A's chat history");
+        require(hasChatMarker(serverB, CHAT_B_MARKER), "Server B's chat history did not receive its marker");
+        require(!hasChatMarker(serverB, CHAT_A_MARKER), "Server A's chat message appeared in server B's chat history");
+
+        require(hasNamedEntity(serverA, ENTITY_A_MARKER), "Server A's world did not receive its named-entity fixture");
+        require(!hasNamedEntity(serverA, ENTITY_B_MARKER), "Server B's named entity appeared in server A's world");
+        require(hasNamedEntity(serverB, ENTITY_B_MARKER), "Server B's world did not receive its named-entity fixture");
+        require(!hasNamedEntity(serverB, ENTITY_A_MARKER), "Server A's named entity appeared in server B's world");
+    }
+
+    private static boolean hasItem(TabContext context, Item item) {
+        return context != null
+            && context.player != null
+            && context.player.getInventory().items.stream().anyMatch(stack -> stack.is(item));
+    }
+
+    private static boolean hasChatMarker(TabContext context, String marker) {
+        if (context == null || context.gui == null) {
+            return false;
+        }
+
+        List<GuiMessage> messages = ((ChatComponentAccessor) context.gui.getChat()).tabby$getAllMessages();
+        return messages.stream().anyMatch(message -> message.content().getString().contains(marker));
+    }
+
+    private static boolean hasNamedEntity(TabContext context, String marker) {
+        if (context == null || context.level == null) {
+            return false;
+        }
+
+        for (Entity entity : context.level.entitiesForRendering()) {
+            if (entity.hasCustomName() && entity.getCustomName().getString().contains(marker)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String contentState() {
+        TabContext serverA = contextOrNull(0);
+        TabContext serverB = contextOrNull(1);
+        return "serverA[diamond=" + hasItem(serverA, Items.DIAMOND)
+            + ", emerald=" + hasItem(serverA, Items.EMERALD)
+            + ", chatA=" + hasChatMarker(serverA, CHAT_A_MARKER)
+            + ", chatB=" + hasChatMarker(serverA, CHAT_B_MARKER)
+            + ", entityA=" + hasNamedEntity(serverA, ENTITY_A_MARKER)
+            + ", entityB=" + hasNamedEntity(serverA, ENTITY_B_MARKER)
+            + "], serverB[diamond=" + hasItem(serverB, Items.DIAMOND)
+            + ", emerald=" + hasItem(serverB, Items.EMERALD)
+            + ", chatA=" + hasChatMarker(serverB, CHAT_A_MARKER)
+            + ", chatB=" + hasChatMarker(serverB, CHAT_B_MARKER)
+            + ", entityA=" + hasNamedEntity(serverB, ENTITY_A_MARKER)
+            + ", entityB=" + hasNamedEntity(serverB, ENTITY_B_MARKER) + "]";
     }
 
     private static void verifyTabStripInteractions(Minecraft client) {
@@ -311,6 +457,7 @@ public final class NetworkSmokeTest {
         if (activeTicks % SWITCH_INTERVAL_TICKS == 0) {
             TabManager.switchToNext();
             validateConnections(client);
+            validateContentIsolation();
         }
 
         if (activeTicks % 200 == 0) {
@@ -569,6 +716,86 @@ public final class NetworkSmokeTest {
     private static String environmentAddress(String name, String defaultValue) {
         String value = System.getenv(name);
         return value == null || value.isBlank() ? defaultValue : value;
+    }
+
+    private static String runRconCommand(String portEnvironmentVariable, int defaultPort, String command) {
+        String password = System.getenv("TABBY_RCON_PASSWORD");
+        require(password != null && !password.isBlank(), "TABBY_RCON_PASSWORD is required for content-isolation tests");
+
+        try (Socket socket = new Socket()) {
+            int port = Integer.parseInt(environmentAddress(portEnvironmentVariable, Integer.toString(defaultPort)));
+            socket.connect(new InetSocketAddress("127.0.0.1", port), 3000);
+            socket.setSoTimeout(3000);
+            InputStream input = socket.getInputStream();
+            OutputStream output = socket.getOutputStream();
+
+            writeRconPacket(output, 1, 3, password);
+            RconPacket authentication = readRconPacket(input);
+            require(authentication.id() == 1 && authentication.type() == 2,
+                "RCON authentication failed for port " + port);
+
+            writeRconPacket(output, 2, 2, command);
+            RconPacket response = readRconPacket(input);
+            require(response.id() == 2 && response.type() == 0,
+                "RCON command did not return a command response on port " + port);
+
+            String normalizedResponse = response.payload().toLowerCase(Locale.ROOT);
+            require(!normalizedResponse.contains("unknown command")
+                    && !normalizedResponse.startsWith("error executing"),
+                "RCON command failed on port " + port + ": " + response.payload());
+            return response.payload();
+        } catch (IOException | NumberFormatException exception) {
+            throw new IllegalStateException(
+                "Could not run Tabby content-isolation fixture command on " + portEnvironmentVariable,
+                exception
+            );
+        }
+    }
+
+    private static void writeRconPacket(OutputStream output, int requestId, int type, String payload) throws IOException {
+        byte[] payloadBytes = payload.getBytes(StandardCharsets.UTF_8);
+        int packetLength = payloadBytes.length + 10;
+        ByteBuffer packet = ByteBuffer.allocate(packetLength + 4).order(ByteOrder.LITTLE_ENDIAN);
+        packet.putInt(packetLength);
+        packet.putInt(requestId);
+        packet.putInt(type);
+        packet.put(payloadBytes);
+        packet.put((byte) 0);
+        packet.put((byte) 0);
+        output.write(packet.array());
+        output.flush();
+    }
+
+    private static RconPacket readRconPacket(InputStream input) throws IOException {
+        byte[] lengthBytes = readRconBytes(input, 4);
+        int packetLength = ByteBuffer.wrap(lengthBytes).order(ByteOrder.LITTLE_ENDIAN).getInt();
+        if (packetLength < 10 || packetLength > 16384) {
+            throw new IOException("Invalid RCON response length: " + packetLength);
+        }
+
+        byte[] packetBytes = readRconBytes(input, packetLength);
+        ByteBuffer packet = ByteBuffer.wrap(packetBytes).order(ByteOrder.LITTLE_ENDIAN);
+        int requestId = packet.getInt();
+        int type = packet.getInt();
+        int payloadLength = packetLength - 10;
+        byte[] payloadBytes = Arrays.copyOfRange(packetBytes, 8, 8 + payloadLength);
+        return new RconPacket(requestId, type, new String(payloadBytes, StandardCharsets.UTF_8));
+    }
+
+    private static byte[] readRconBytes(InputStream input, int length) throws IOException {
+        byte[] result = new byte[length];
+        int offset = 0;
+        while (offset < length) {
+            int read = input.read(result, offset, length - offset);
+            if (read < 0) {
+                throw new IOException("Unexpected end of RCON packet");
+            }
+            offset += read;
+        }
+        return result;
+    }
+
+    private record RconPacket(int id, int type, String payload) {
     }
 
     private static void require(boolean condition, String message) {

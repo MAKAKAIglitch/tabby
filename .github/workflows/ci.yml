@@ -42,6 +42,11 @@ jobs:
           mkdir -p "$root/a" "$root/b"
           echo "TABBY_SERVER_A_PID_FILE=$root/a/server.pid" >> "$GITHUB_ENV"
           echo "TABBY_SERVER_B_PID_FILE=$root/b/server.pid" >> "$GITHUB_ENV"
+          rcon_password="$(openssl rand -hex 16)"
+          echo "::add-mask::$rcon_password"
+          echo "TABBY_RCON_PASSWORD=$rcon_password" >> "$GITHUB_ENV"
+          echo "TABBY_RCON_PORT_A=25575" >> "$GITHUB_ENV"
+          echo "TABBY_RCON_PORT_B=25576" >> "$GITHUB_ENV"
 
           manifest_url="$(curl -fsSL https://piston-meta.mojang.com/mc/game/version_manifest_v2.json | jq -r '.versions[] | select(.id == "1.21.4") | .url')"
           test -n "$manifest_url" && test "$manifest_url" != "null"
@@ -57,6 +62,7 @@ jobs:
             local world="$3"
             local seed="$4"
             local motd="$5"
+            local rcon_port="$6"
 
             cp "$root/server.jar" "$dir/server.jar"
             printf 'eula=true\n' > "$dir/eula.txt"
@@ -74,6 +80,9 @@ jobs:
           view-distance=4
           simulation-distance=4
           spawn-protection=0
+          enable-rcon=true
+          rcon.password=$rcon_password
+          rcon.port=$rcon_port
           EOF
             (
               cd "$dir"
@@ -82,8 +91,8 @@ jobs:
             )
           }
 
-          start_server "$root/a" 25565 "tabby-world-a" 12104 "Tabby CI A"
-          start_server "$root/b" 25566 "tabby-world-b" 12105 "Tabby CI B"
+          start_server "$root/a" 25565 "tabby-world-a" 12104 "Tabby CI A" 25575
+          start_server "$root/b" 25566 "tabby-world-b" 12105 "Tabby CI B" 25576
 
           for attempt in $(seq 1 120); do
             ready_a=0
