@@ -22,7 +22,6 @@ public final class TabBar {
     private static final int GAP = 3;
     private static final int PLUS_WIDTH = 24;
     private static final int CLOSE_WIDTH = 20;
-    private static final int MIN_TAB_WIDTH = 56;
     private static final int MAX_TAB_WIDTH = 170;
 
     private static final int BAR_BACKGROUND = 0xE611161D;
@@ -207,10 +206,13 @@ public final class TabBar {
     private static Layout layout(Minecraft client, List<TabContext> contexts) {
         int screenWidth = client.getWindow().getGuiScaledWidth();
         int count = contexts.size();
-        int tabsWidthAvailable = screenWidth - LEFT_MARGIN * 2 - PLUS_WIDTH - GAP * (count + 1);
+        int tabsWidthAvailable = Math.max(
+            count,
+            screenWidth - LEFT_MARGIN * 2 - PLUS_WIDTH - GAP * (count + 1)
+        );
         int tabWidth = count == 0
             ? 0
-            : Math.max(MIN_TAB_WIDTH, Math.min(MAX_TAB_WIDTH, tabsWidthAvailable / count));
+            : Math.max(1, Math.min(MAX_TAB_WIDTH, tabsWidthAvailable / count));
 
         List<TabSlot> slots = new ArrayList<>(count);
         int x = LEFT_MARGIN;

@@ -555,8 +555,9 @@ public final class TabManager {
             // LevelRenderer.setLevel() invokes allChanged(), rebuilding world chunks for this tab.
             target.levelRenderer.setLevel(target.level);
             target.particleEngine.setLevel(target.level);
-            if (pauseMenuRequested && target.level != null
-                && (target.screen == null || target.screen instanceof PauseScreen)) {
+            if (pauseMenuRequested && target.level != null) {
+                // The source context may have a stale ConnectScreen/overlay saved from login.
+                // Switching from PauseScreen should consistently land on this world's pause menu.
                 target.screen = new PauseScreen(true);
             }
             client.setScreen(target.screen);

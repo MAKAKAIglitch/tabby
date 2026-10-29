@@ -321,7 +321,10 @@ public final class NetworkSmokeTest {
         int plusX = TabBar.plusButtonCenterX(client);
         require(
             TabBar.handleClick(client, plusX, TabBar.stripCenterY(), GLFW.GLFW_MOUSE_BUTTON_LEFT),
-            "Clicking the plus button was not handled"
+            "Clicking the plus button was not handled (screen="
+                + (client.screen == null ? "null" : client.screen.getClass().getSimpleName())
+                + ", guiWidth=" + client.getWindow().getGuiScaledWidth()
+                + ", x=" + plusX + ", y=" + TabBar.stripCenterY() + ")"
         );
         require(TabManager.contexts().size() == 3, "The plus button did not create a third tab");
         int temporaryTabId = TabManager.activeId();
