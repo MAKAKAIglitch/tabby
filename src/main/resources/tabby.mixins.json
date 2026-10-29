@@ -14,7 +14,8 @@
     "KeyboardHandlerMixin",
     "MouseHandlerMixin",
     "ConnectScreenMixin",
-    "MutableSpriteSetAccessor"
+    "MutableSpriteSetAccessor",
+    "WorldOpenFlowsMixin"
   ],
   "injectors": {
     "defaultRequire": 1

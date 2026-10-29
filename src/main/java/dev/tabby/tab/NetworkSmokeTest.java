@@ -577,10 +577,20 @@ public final class NetworkSmokeTest {
             TabContext guardTab = contextOrNull(secondWorldGuardTabId);
             require(guardTab != null, "The second-world guard tab disappeared during world loading");
             require(TabManager.activeId() == secondWorldGuardTabId, "World-loading guard unexpectedly changed the active tab");
-            require(guardTab.level == null && client.level == null,
-                "Opening a rejected second world leaked the background single-player level into the active tab");
+            require(
+                guardTab.level == null,
+                "Rejected second-world launch changed the guard tab's ClientLevel: activeTab=" + TabManager.activeId()
+                    + ", guardLevel=" + guardTab.level + ", clientLevel=" + client.level
+            );
+            require(
+                client.level == null,
+                "Rejected second-world launch changed Minecraft.level: activeTab=" + TabManager.activeId()
+                    + ", guardTab=" + guardTab.id() + ", guardLevel=" + guardTab.level + ", clientLevel=" + client.level
+            );
             require(guardTab.player == null && client.player == null,
-                "Opening a rejected second world leaked the background single-player player into the active tab");
+                "Opening a rejected second world leaked a player into the active tab");
+            require(client.screen instanceof TitleScreen,
+                "Rejected second-world launch left a world-loading screen in the active tab: " + client.screen);
             require(client.levelRenderer == guardTab.levelRenderer,
                 "Opening a rejected second world replaced the active tab's world renderer");
             require(client.getConnection() == null,
