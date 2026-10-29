@@ -6,7 +6,9 @@ function Test-Java21Home([string] $HomePath) {
     if ([string]::IsNullOrWhiteSpace($HomePath)) { return $false }
     $candidate = $HomePath.Trim().Trim('"')
     $javaExe = Join-Path $candidate 'bin\java.exe'
+    $javacExe = Join-Path $candidate 'bin\javac.exe'
     if (-not (Test-Path -LiteralPath $javaExe -PathType Leaf)) { return $false }
+    if (-not (Test-Path -LiteralPath $javacExe -PathType Leaf)) { return $false }
 
     # java -version writes to stderr; use ProcessStartInfo so PowerShell 7's
     # native-command error preference cannot turn valid version output into an exception.
