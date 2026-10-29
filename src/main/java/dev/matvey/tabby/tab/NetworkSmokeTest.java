@@ -358,7 +358,10 @@ public final class NetworkSmokeTest {
             assertSingleplayerWorldRetained(client);
             require(client.level == savedSingleplayerLevel, "Switching to single-player did not restore its level");
             require(client.player == savedSingleplayerPlayer, "Switching to single-player did not restore its player");
-            require(client.getConnection() == savedSingleplayerConnection, "Switching to single-player did not restore its packet listener");
+            require(
+                client.getConnection() != null && client.getConnection().getConnection() == savedSingleplayerConnection,
+                "Switching to single-player did not restore its packet listener"
+            );
             require(((MinecraftAccessor) client).tabby$isLocalServer(), "Single-player mode was lost after switching back");
 
             TabManager.switchTo(networkAfterSingleplayerTabId);
