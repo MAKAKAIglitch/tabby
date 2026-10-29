@@ -14,8 +14,8 @@ function Test-Java21Home([string] $HomePath) {
 }
 
 $candidates = New-Object 'System.Collections.Generic.List[string]'
-foreach ($home in @($env:TABBY_JAVA_HOME, $env:JAVA_HOME, $env:JDK_HOME)) {
-    if (-not [string]::IsNullOrWhiteSpace($home)) { $candidates.Add($home.Trim().Trim('"')) }
+foreach ($candidateHome in @($env:TABBY_JAVA_HOME, $env:JAVA_HOME, $env:JDK_HOME)) {
+    if (-not [string]::IsNullOrWhiteSpace($candidateHome)) { $candidates.Add($candidateHome.Trim().Trim('"')) }
 }
 
 foreach ($commandName in @('java.exe', 'java')) {
