@@ -140,6 +140,74 @@ jobs:
           echo "Network/single-player client test failed (exit code: $status)."
           exit 1
 
+      - name: Verify Sodium, Iris, Lithium, and Mod Menu compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          compat_root="$RUNNER_TEMP/tabby-compatibility"
+          mods_dir="run/mods"
+          mkdir -p "$compat_root/downloads" "$mods_dir"
+
+          fetch_verified_mod() {
+            local filename="$1"
+            local url="$2"
+            local expected_sha512="$3"
+            local output="$compat_root/downloads/$filename"
+            curl -fL --retry 3 "$url" -o "$output"
+            printf '%s  %s\n' "$expected_sha512" "$output" | sha512sum --check -
+          }
+
+          fetch_verified_mod "sodium.jar" \
+            "https://cdn.modrinth.com/data/AANobbMI/versions/c3YkZvne/sodium-fabric-0.6.13%2Bmc1.21.4.jar" \
+            "2c72ca2ddfd27e29ff6c24fccdf6f3d80857bd1014c707017f96cb4a424f94918e53ba21d85f22e3c9171803f8d2c12c99ae857d38d8e85546cc65960b95a2f1"
+          fetch_verified_mod "iris.jar" \
+            "https://cdn.modrinth.com/data/YL57xq9U/versions/Ca054sTe/iris-fabric-1.8.8%2Bmc1.21.4.jar" \
+            "5296c4b0c0be6d5259b985577154c02e6534818465205e6995b5229b26414b423d333199152693118a897f31312e4de051abe28df7d0dd0950c8b649e54a50a0"
+          fetch_verified_mod "lithium.jar" \
+            "https://cdn.modrinth.com/data/gvQqBUqZ/versions/u8pHPXJl/lithium-fabric-0.15.3%2Bmc1.21.4.jar" \
+            "b8b541c0e968571c8972872b342e34b92573bc9210d455dc1349589f30a67a90d930dbfd99b176ab9b110350ceb53e11118378dc13a35e83a9090826627bdac0"
+          fetch_verified_mod "modmenu.jar" \
+            "https://cdn.modrinth.com/data/mOgUt4GM/versions/qPUMDJX6/modmenu-13.0.2.jar" \
+            "7be7ea40934865ae71c2805ac228b2cd808d1f0dd1ec361e10ab5e84d881a3abd3f427d840153f89a501a7f08198781c88f17811c2b6373a3d30b5696c3d073d"
+
+          for mod in sodium iris lithium modmenu; do
+            rm -f "$mods_dir"/*.jar
+            case "$mod" in
+              sodium)
+                cp "$compat_root/downloads/sodium.jar" "$mods_dir/sodium.jar"
+                ;;
+              iris)
+                # Iris requires Sodium, so that dependency is included for this isolated Iris check.
+                cp "$compat_root/downloads/sodium.jar" "$mods_dir/sodium.jar"
+                cp "$compat_root/downloads/iris.jar" "$mods_dir/iris.jar"
+                ;;
+              lithium)
+                cp "$compat_root/downloads/lithium.jar" "$mods_dir/lithium.jar"
+                ;;
+              modmenu)
+                cp "$compat_root/downloads/modmenu.jar" "$mods_dir/modmenu.jar"
+                ;;
+            esac
+
+            log="$compat_root/$mod.log"
+            echo "Running compatibility smoke test with $mod..."
+            set +e
+            timeout 180s env TABBY_COMPAT_SMOKE_TEST=1 TABBY_COMPAT_MOD="$mod" \
+              xvfb-run -a ./gradlew --no-daemon runClient 2>&1 | tee "$log"
+            status=${PIPESTATUS[0]}
+            set -e
+
+            if [ "$status" -ne 0 ] \
+              || ! grep -Fq "Tabby compatibility smoke test passed for $mod:" "$log"; then
+              echo "Compatibility smoke test failed for $mod (exit code: $status)."
+              tail -n 160 "$log" || true
+              exit 1
+            fi
+            echo "Compatibility smoke test passed for $mod."
+          done
+
+          rm -f "$mods_dir"/*.jar
+
       - name: Stop local test servers
         if: always()
         shell: bash

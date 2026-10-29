@@ -25,8 +25,8 @@ Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style
 - [x] Stage 2 — tab strip, active-tab highlight, titles, close/plus controls, and Ctrl+T/Ctrl+W/Ctrl+Tab/Ctrl+1..9 verified by CI. The test exercised the actual keyboard and click paths, then kept both server connections alive for 2400 ticks.
 - [x] Stage 3 — duplicate attempts are intercepted before vanilla disconnects the active tab; disconnect callbacks release tab-owned references; CI covers duplicate blocking, closing a live tab, and closing the final tab.
 - [x] Stage 4 — CI verifies key release on switch, the JSON-configured background-tab limit, 2400-tick dual-connection stability, real integrated single-player retention while connecting to a network tab, blocking a second single-player world, connection cleanup, and clean client shutdown. Sound stop, cursor reset, renderer refresh, and integrated-server preservation hooks are implemented.
-- [ ] Stage 5 — JSON config now supports background-tab count, shortcut keys, menu visibility, in-game bar mode, and optional address-only server restoration. Ping labels, drag reordering, and pin/unpin are implemented; CI checks configuration defaults, reorder/pin ordering, and deduplicated address persistence.
-- [ ] Stage 6 — compatibility checks and README report.
+- [x] Stage 5 — configuration and polish verified by CI: JSON settings, configurable shortcuts/bar mode, ping labels, drag reordering, pin/unpin, and optional deduplicated address-only restoration all passed their automated checks.
+- [ ] Stage 6 — CI now runs separate isolated launch/world-render/context-switch checks for Sodium 0.6.13, Iris 1.8.8 (with its Sodium dependency), Lithium 0.15.3, and Mod Menu 13.0.2 on Minecraft 1.21.4. Acceptance and README results remain pending the new CI run.
 
 ## Stage 0 — scaffold
 

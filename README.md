@@ -10,7 +10,9 @@ Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its
 
 **Stage 4 verified by CI.** The test connected one client to two offline-mode servers, switched between them for 2400 ticks, then opened an actual integrated single-player world, connected a different tab to a network server, switched back to verify the same world/player/memory connection/IntegratedServer remained live, and confirmed that opening a second single-player save was blocked. It then closed the single-player and network tabs and returned to the title screen. CI also verifies key release, the configured background-tab limit (default 4), duplicate-connection protection, and clean shutdown.
 
-**Stage 5 in progress.** `config/tabby.json` exposes the background-tab limit, Ctrl shortcut key codes, menu visibility, in-game bar mode (`always`, `hover_or_alt`, `hidden`), and optional address-only server restoration (`restoreServerAddresses`). The tab strip now shows pin state and cached ping when available, supports right-click pin/unpin and drag reordering, and reconnects saved server addresses when restoration is enabled. CI checks default config values, tab order/pinning, and deduplicated address persistence.
+**Stage 5 verified by CI.** `config/tabby.json` exposes the background-tab limit, Ctrl shortcut key codes, menu visibility, in-game bar mode (`always`, `hover_or_alt`, `hidden`), and optional address-only server restoration (`restoreServerAddresses`). The tab strip shows pin state and cached ping when available, supports right-click pin/unpin and drag reordering, and reconnects saved server addresses when restoration is enabled. CI checks default config values, tab order/pinning, and deduplicated address persistence.
+
+**Stage 6 in progress.** CI downloads SHA-512-pinned Fabric builds for Minecraft 1.21.4 and runs an isolated server-world/render/tab-switch smoke test with Sodium 0.6.13, Iris 1.8.8 (with Sodium, its required dependency), Lithium 0.15.3, and Mod Menu 13.0.2. Compatibility status will be recorded after the run completes; these checks are not yet reported as passed.
 
 ## Requirements
 

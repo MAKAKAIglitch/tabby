@@ -60,7 +60,7 @@ public final class TabManager {
         restoreTickDelay = 0;
         RESTORE_QUEUE.clear();
         TabbyConfig.load();
-        if (TabbyConfig.restoreServerAddresses() && !NetworkSmokeTest.isEnabled()) {
+        if (TabbyConfig.restoreServerAddresses() && !NetworkSmokeTest.isEnabled() && !CompatibilitySmokeTest.isEnabled()) {
             RESTORE_QUEUE.addAll(TabbyConfig.restoredServerAddresses());
             if (!RESTORE_QUEUE.isEmpty()) {
                 LOGGER.info("Restoring {} server address tab(s) from config", RESTORE_QUEUE.size());
@@ -78,6 +78,8 @@ public final class TabManager {
     private static void onClientTick(Minecraft minecraft) {
         if (NetworkSmokeTest.isEnabled()) {
             NetworkSmokeTest.tick(minecraft);
+        } else if (CompatibilitySmokeTest.isEnabled()) {
+            CompatibilitySmokeTest.tick(minecraft);
         } else {
             runPrototypeSmokeTestTick();
         }
@@ -185,7 +187,7 @@ public final class TabManager {
      * Kept for the network smoke test; normal UI and shortcuts use createTab().
      */
     private static void tickRestoredServerAddresses(Minecraft minecraft) {
-        if (client == null || NetworkSmokeTest.isEnabled() || RESTORE_QUEUE.isEmpty()) {
+        if (client == null || NetworkSmokeTest.isEnabled() || CompatibilitySmokeTest.isEnabled() || RESTORE_QUEUE.isEmpty()) {
             return;
         }
 
