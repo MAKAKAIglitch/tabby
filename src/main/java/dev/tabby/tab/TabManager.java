@@ -685,7 +685,25 @@ public final class TabManager {
 
         int previousId = currentContextId();
         if (previousId == tabId) {
-            task.run();
+            // Even tasks for the visible tab need an execution marker. Minecraft may call
+            // setLevel() from a login handler, and setLevel() performs a nested client tick.
+            // Without this marker, Tabby would run its background-connection loop inside
+            // that nested tick while the active tab is temporarily between level states.
+            Integer previousExecutionId = EXECUTION_CONTEXT.get();
+            if (previousExecutionId != null) {
+                task.run();
+                return;
+            }
+
+            EXECUTION_CONTEXT.set(tabId);
+            try {
+                task.run();
+            } catch (RuntimeException | Error exception) {
+                LOGGER.debug("Packet task failed in active tab {}", tabId, exception);
+                throw exception;
+            } finally {
+                EXECUTION_CONTEXT.remove();
+            }
             return;
         }
 
