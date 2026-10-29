@@ -21,7 +21,8 @@
   },
   "accessWidener": "tabby.accesswidener",
   "mixins": [
-    "tabby.mixins.json"
+    "tabby.mixins.json",
+    "tabby.optional.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.16.14",

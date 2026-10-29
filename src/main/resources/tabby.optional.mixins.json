@@ -1,0 +1,12 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "dev.tabby.mixin.optional",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "MeteorAutoBreedMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
