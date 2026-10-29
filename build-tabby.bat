@@ -4,6 +4,8 @@ cd /d "%~dp0"
 
 echo.
 echo Tabby local builder
+echo Target: Fabric Loader - Minecraft Java Edition 1.21.4
+echo This JAR is not for Forge or NeoForge.
 echo This window will remain open when the build finishes.
 echo.
 
@@ -27,6 +29,7 @@ if not exist "%~dp0dist\Tabby-1.21.4.jar" (
 )
 
 echo.
+echo Loader: Fabric (Minecraft 1.21.4)
 echo Final mod JAR:
 echo "%~dp0dist\Tabby-1.21.4.jar"
 if /I not "%CI%"=="true" start "" explorer.exe "%~dp0dist"

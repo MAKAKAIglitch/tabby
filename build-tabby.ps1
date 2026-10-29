@@ -21,6 +21,7 @@ try {
     Write-Host ' Tabby local build'
     Write-Host '============================================================'
     Write-Host "Project : $projectRoot"
+    Write-Host 'Target  : Fabric Loader - Minecraft Java Edition 1.21.4 (not Forge/NeoForge)'
     Write-Host 'Java    : automatically select an installed Java 21 JDK'
     Write-Host "Log     : $logPath"
     Write-Host ''
@@ -46,6 +47,7 @@ try {
 
     Write-Host ''
     Write-Host 'BUILD SUCCESSFUL'
+    Write-Host 'Loader  : Fabric (Minecraft 1.21.4)'
     Write-Host "JAR     : $($jarInfo.FullName)"
     Write-Host ('Size    : {0:N0} bytes' -f $jarInfo.Length)
     Write-Host "Log     : $logPath"

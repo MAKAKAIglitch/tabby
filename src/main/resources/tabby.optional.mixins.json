@@ -4,7 +4,7 @@
   "package": "dev.tabby.mixin.optional",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "MeteorAutoBreedMixin"
+    "MeteorTickEventBusMixin"
   ],
   "injectors": {
     "defaultRequire": 0

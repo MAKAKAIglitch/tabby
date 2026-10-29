@@ -1,12 +1,12 @@
 # Tabby
 
-Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its goal is to provide browser-style tabs inside one Minecraft client.
+**Loader: Fabric (Minecraft Java Edition 1.21.4).** Tabby is a client-side Fabric mod, not a Forge or NeoForge mod. Install the exported `Tabby-1.21.4.jar` into a Minecraft profile that uses Fabric Loader 0.16.14+ and Fabric API for 1.21.4.
 
 ## Current status
 
 **Stage 0 accepted.** The minimal client builds and loads in a Minecraft 1.21.4 startup smoke test.
 
-**Stages 1–3 verified by CI.** One client connected to two local Minecraft 1.21.4 servers, verified separate world/player/connection objects, and kept both connections alive for at least 2400 ticks while switching tabs. CI exercises tab clicks and shortcuts, duplicate-connection protection, closing a live tab, and returning to a title screen after the final tab closes. Fabric API 0.119.4 does not support initializing a second particle factory registry, so the prototype shares the particle engine and suppresses particle mutations from inactive tabs. A pre-tick guard restores a missing active world while its network connection is live. An optional mixin skips Meteor AutoBreed's world-only tick when no world is loaded, matching the reported null-level failure; that add-on-specific guard still needs validation with Meteor installed. Full chat/inventory/entity isolation still needs deeper tests.
+**Stages 1–3 verified by CI.** One client connected to two local Minecraft 1.21.4 servers, verified separate world/player/connection objects, and kept both connections alive for at least 2400 ticks while switching tabs. CI exercises tab clicks and shortcuts, duplicate-connection protection, closing a live tab, and returning to a title screen after the final tab closes. Fabric API 0.119.4 does not support initializing a second particle factory registry, so the prototype shares the particle engine and suppresses particle mutations from inactive tabs. A pre-tick guard restores a missing active world while its network connection is live. An optional mixin blocks Meteor's `TickEvent.Pre`/`TickEvent.Post` dispatch while no active world is loaded. This protects multiple world-dependent modules (including the reported AutoBreed and Nametags handlers) without a compile-time Meteor dependency; validation inside the user's Meteor modpack is still required. Full chat/inventory/entity isolation still needs deeper tests.
 
 **Stage 4 verified by CI.** The test connected one client to two offline-mode servers, switched between them for 2400 ticks, then opened an actual integrated single-player world, connected a different tab to a network server, switched back to verify the same world/player/memory connection/IntegratedServer remained live, and confirmed that opening a second single-player save was blocked. It then closed the single-player and network tabs and returned to the title screen. CI also verifies key release, the configured background-tab limit (default 4), duplicate-connection protection, and clean shutdown.
 
@@ -54,7 +54,7 @@ On Linux/macOS:
 
 ### Build locally on Windows
 
-**Recommended: double-click `build-tabby.bat` in the project folder.** It automatically selects an installed Java 21 JDK (or downloads Eclipse Temurin 21 after verifying its SHA-256 checksum), runs Gradle, and checks that a non-empty remapped mod JAR really exists. The final file is copied to:
+**Recommended: double-click `build-tabby.bat` in the project folder.** This builds the Fabric version for Minecraft 1.21.4 (not Forge/NeoForge). It automatically selects an installed Java 21 JDK (or downloads Eclipse Temurin 21 after verifying its SHA-256 checksum), runs Gradle, and checks that a non-empty remapped mod JAR really exists. The final file is copied to:
 
 ```text
 dist\\Tabby-1.21.4.jar
@@ -66,7 +66,7 @@ To build from a terminal instead, use `./gradlew build exportModJar` on Linux/ma
 
 The first build downloads the Gradle distribution, required dependencies, and (only if needed) Java 21. Later builds reuse the Gradle daemon, configuration cache and task-output cache. The normal Gradle outputs remain under `build/libs/`; the stable installable copy is `dist/Tabby-1.21.4.jar`. Generated game files are kept under the ignored `run/` directory.
 
-Use **Ctrl+T** to create a tab, **Ctrl+W** to close the active tab, **Ctrl+Tab** to cycle tabs, and **Ctrl+1** through **Ctrl+9** to select a tab by position. The strip is visible only on the **main title screen** and the **pause menu**; it never renders over the in-game HUD or other screens. With Mod Menu installed, open **Mods → Tabby → Settings** to change the background-tab limit, server-address restoration, and Ctrl shortcut keys.
+Use **Ctrl+T** to create a tab, **Ctrl+W** to close the active tab, **Ctrl+Tab** to cycle tabs, and **Ctrl+1** through **Ctrl+9** to select a tab by position. The strip is visible only on the **main title screen** and the **pause menu**; it never renders over the in-game HUD or other screens. With Mod Menu installed, open **Mods → Tabby → Settings** to change the background-tab limit, server-address restoration, Ctrl shortcut keys, tab-bar size/color/opacity, and the diagnostic HUD plaque.
 
 ## Development workflow
 
