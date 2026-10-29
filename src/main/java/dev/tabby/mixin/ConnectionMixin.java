@@ -1,6 +1,6 @@
-package dev.matvey.tabby.mixin;
+package dev.tabby.mixin;
 
-import dev.matvey.tabby.tab.TabManager;
+import dev.tabby.tab.TabManager;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.ProtocolInfo;

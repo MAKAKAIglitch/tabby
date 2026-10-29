@@ -1,6 +1,6 @@
-package dev.matvey.tabby.mixin;
+package dev.tabby.mixin;
 
-import dev.matvey.tabby.tab.TabManager;
+import dev.tabby.tab.TabManager;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleEngine;

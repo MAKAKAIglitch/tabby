@@ -1,4 +1,4 @@
-package dev.matvey.tabby.tab;
+package dev.tabby.tab;
 
 import net.fabricmc.fabric.api.client.rendering.v1.HudLayerRegistrationCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.IdentifiedLayer;

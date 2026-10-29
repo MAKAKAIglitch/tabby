@@ -1,4 +1,4 @@
-package dev.matvey.tabby.tab;
+package dev.tabby.tab;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

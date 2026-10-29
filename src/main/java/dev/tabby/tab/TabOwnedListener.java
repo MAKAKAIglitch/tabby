@@ -1,4 +1,4 @@
-package dev.matvey.tabby.tab;
+package dev.tabby.tab;
 
 /**
  * Exposes the owning Tabby context for a client network listener.

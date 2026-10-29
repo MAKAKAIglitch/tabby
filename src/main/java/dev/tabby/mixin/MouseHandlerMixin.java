@@ -1,6 +1,6 @@
-package dev.matvey.tabby.mixin;
+package dev.tabby.mixin;
 
-import dev.matvey.tabby.tab.TabBar;
+import dev.tabby.tab.TabBar;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import org.lwjgl.glfw.GLFW;

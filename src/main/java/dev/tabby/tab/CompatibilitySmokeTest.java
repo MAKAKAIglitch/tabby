@@ -1,6 +1,6 @@
-package dev.matvey.tabby.tab;
+package dev.tabby.tab;
 
-import dev.matvey.tabby.mixin.MinecraftAccessor;
+import dev.tabby.mixin.MinecraftAccessor;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConnectScreen;

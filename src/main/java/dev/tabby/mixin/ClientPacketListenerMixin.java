@@ -1,6 +1,6 @@
-package dev.matvey.tabby.mixin;
+package dev.tabby.mixin;
 
-import dev.matvey.tabby.tab.TabOwnedListener;
+import dev.tabby.tab.TabOwnedListener;
 import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;

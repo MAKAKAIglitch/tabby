@@ -1,4 +1,4 @@
-package dev.matvey.tabby.mixin;
+package dev.tabby.mixin;
 
 import net.minecraft.client.GuiMessage;
 import net.minecraft.client.gui.components.ChatComponent;

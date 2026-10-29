@@ -8,7 +8,7 @@ Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style
 
 - Minecraft 1.21.4; Java 21; Fabric Loader 0.16.x; Fabric API for 1.21.4.
 - Gradle + Fabric Loom, using Mojang's official mappings via `loom.officialMojangMappings()`.
-- Mod id: `tabby`; package: `dev.matvey.tabby`; client environment.
+- Mod id: `tabby`; package: `dev.tabby`; client environment.
 - Entry point: `TabbyClient implements ClientModInitializer`.
 - No required third-party mods; Fabric API is the only mod dependency.
 - Source code and code comments in English; user-facing reports in Russian.
@@ -78,6 +78,6 @@ Test on Fabric API alone, then separately with Sodium, Iris, Lithium, and Mod Me
 
 ## Build performance and Java selection
 
-- [x] Enable the Gradle daemon, parallel execution, VFS watching, local task-output caching, and configuration cache (configuration-cache problems warn rather than fail the build).
+- [x] Enable the Gradle daemon, parallel task execution, parallel configuration-cache storage, VFS watching, local task-output caching, and multiple cached task graphs (configuration-cache problems warn rather than fail the build).
 - [x] Make `gradlew` and `gradlew.bat` select an installed Java 21 automatically and, if needed, bootstrap an Eclipse Temurin 21 JDK into Gradle's user cache with SHA-256 verification.
 - [x] Keep the same Gradle daemon available across CI build/test invocations by removing `--no-daemon`.

@@ -1,6 +1,6 @@
-package dev.matvey.tabby.tab;
+package dev.tabby.tab;
 
-import dev.matvey.tabby.mixin.MinecraftAccessor;
+import dev.tabby.mixin.MinecraftAccessor;
 import net.minecraft.client.KeyMapping;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.gui.screens.Screen;

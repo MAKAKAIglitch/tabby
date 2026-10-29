@@ -1,4 +1,4 @@
-package dev.matvey.tabby.tab;
+package dev.tabby.tab;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -12,8 +12,8 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
-import dev.matvey.tabby.mixin.ChatComponentAccessor;
-import dev.matvey.tabby.mixin.MinecraftAccessor;
+import dev.tabby.mixin.ChatComponentAccessor;
+import dev.tabby.mixin.MinecraftAccessor;
 import net.minecraft.client.GuiMessage;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;

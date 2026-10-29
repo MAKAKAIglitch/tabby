@@ -1,4 +1,4 @@
-package dev.matvey.tabby.mixin;
+package dev.tabby.mixin;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.server.IntegratedServer;

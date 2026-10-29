@@ -1,6 +1,6 @@
-package dev.matvey.tabby;
+package dev.tabby;
 
-import dev.matvey.tabby.tab.TabManager;
+import dev.tabby.tab.TabManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;

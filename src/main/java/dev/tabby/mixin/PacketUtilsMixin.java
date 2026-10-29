@@ -1,7 +1,7 @@
-package dev.matvey.tabby.mixin;
+package dev.tabby.mixin;
 
 import com.llamalad7.mixinextras.sugar.Local;
-import dev.matvey.tabby.tab.TabManager;
+import dev.tabby.tab.TabManager;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.protocol.PacketUtils;
 import org.spongepowered.asm.mixin.Mixin;
