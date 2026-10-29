@@ -7,6 +7,7 @@ is_java21_home() {
     candidate=${1:-}
     [ -n "$candidate" ] || return 1
     [ -x "$candidate/bin/java" ] || return 1
+    [ -x "$candidate/bin/javac" ] || return 1
 
     version_output=$("$candidate/bin/java" -version 2>&1 || true)
     printf '%s\n' "$version_output" | grep -Eq 'version "21([.]|")|openjdk 21([.]|[[:space:]])'
