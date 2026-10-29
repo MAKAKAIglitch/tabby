@@ -203,7 +203,7 @@ public final class NetworkSmokeTest {
 
         TabManager.moveTab(1, 0);
         require(TabManager.contexts().get(0).id() == 1, "Dragging/reordering a tab did not change its position");
-        TabManager.moveTab(1, 1);
+        TabManager.moveTab(1, TabManager.contexts().size());
         require(TabManager.contexts().get(0).id() == 0 && TabManager.contexts().get(1).id() == 1,
             "Moving the tab back did not restore the original order");
 
