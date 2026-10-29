@@ -32,7 +32,7 @@ jobs:
           $output | ForEach-Object { Write-Host $_ }
           if ($LASTEXITCODE -ne 0) { throw "Gradle wrapper failed with exit code $LASTEXITCODE" }
           $text = $output -join "`n"
-          if ($text -notmatch '(?m)(JVM|Launcher JVM): 21([.]|\s)') {
+          if ($text -notmatch '(?m)JVM:[ ]+21([.]|[ ])') {
             throw "Gradle did not start on Java 21."
           }
 
