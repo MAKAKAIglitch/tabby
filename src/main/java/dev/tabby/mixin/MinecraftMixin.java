@@ -22,7 +22,7 @@ public abstract class MinecraftMixin {
     @Unique
     private IntegratedServer tabby$preservedIntegratedServer;
 
-    @Inject(method = "tick", at = @At("HEAD"))
+    @Inject(method = "tick", at = @At("HEAD"), order = 0)
     private void tabby$captureCurrentContext(CallbackInfo ci) {
         TabManager.captureCurrentState();
     }

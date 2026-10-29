@@ -202,6 +202,24 @@ public final class TabManager {
             return false;
         }
 
+        // A connected play tab must never enter an unrelated client tick with no level.
+        // This guards other client mods (for example pre-tick event listeners) from seeing
+        // a transient null left by a background context switch or renderer transition.
+        boolean activeConnectionLive = active.networkConnection != null
+            && active.networkConnection.isConnected();
+        boolean activeWorldWasLost = activeConnectionLive
+            && active.level != null
+            && active.player != null
+            && client.level == null;
+        if (activeWorldWasLost) {
+            LOGGER.warn(
+                "Restoring missing active world for tab {} before client tick (connection still live)",
+                active.id()
+            );
+            restoreClientGlobals(active);
+            return true;
+        }
+
         for (TabContext other : TABS.values()) {
             if (other.id() == active.id()) {
                 continue;
@@ -220,22 +238,26 @@ public final class TabManager {
                 other.id(),
                 active.id()
             );
-            active.applyTo(client, true);
-            if (active.levelRenderer != null
-                && ((LevelRendererAccessor) active.levelRenderer).tabby$getLevel() != active.level) {
-                active.levelRenderer.setLevel(active.level);
-            }
-            if (active.levelRenderer != null) {
-                client.entityRenderDispatcher.setLevel(active.level);
-            }
-            if (active.particleEngine != null
-                && ((ParticleEngineAccessor) active.particleEngine).tabby$getLevel() != active.level) {
-                active.particleEngine.setLevel(active.level);
-            }
+            restoreClientGlobals(active);
             return true;
         }
 
         return false;
+    }
+
+    private static void restoreClientGlobals(TabContext context) {
+        context.applyTo(client, true);
+        if (context.levelRenderer != null
+            && ((LevelRendererAccessor) context.levelRenderer).tabby$getLevel() != context.level) {
+            context.levelRenderer.setLevel(context.level);
+        }
+        if (context.levelRenderer != null) {
+            client.entityRenderDispatcher.setLevel(context.level);
+        }
+        if (context.particleEngine != null
+            && ((ParticleEngineAccessor) context.particleEngine).tabby$getLevel() != context.level) {
+            context.particleEngine.setLevel(context.level);
+        }
     }
 
     public static void createTab() {

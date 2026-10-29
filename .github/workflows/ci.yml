@@ -68,8 +68,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Generate Minecraft sources and build mod
-        run: ./gradlew genSources build
+      - name: Build mod
+        run: ./gradlew build
 
       - name: Start two offline-mode Minecraft test servers
         shell: bash

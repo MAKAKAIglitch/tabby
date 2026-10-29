@@ -50,6 +50,9 @@ public final class TabbyConfig {
         data.keyNextTab = normalizeKey(data.keyNextTab, GLFW.GLFW_KEY_TAB);
         data.keySelectFirstTab = normalizeFirstTabKey(data.keySelectFirstTab);
         data.inGameBarMode = normalizeBarMode(data.inGameBarMode);
+        data.barScalePercent = normalizeBarScale(data.barScalePercent);
+        data.barColorPreset = normalizeBarColor(data.barColorPreset);
+        data.barOpacityPercent = normalizeBarOpacity(data.barOpacityPercent);
         data.restoredServerAddresses = normalizeAddresses(data.restoredServerAddresses);
         save();
     }
@@ -84,6 +87,42 @@ public final class TabbyConfig {
 
     public static synchronized boolean restoreServerAddresses() {
         return data.restoreServerAddresses;
+    }
+
+    public static synchronized boolean showHudInfo() {
+        return data.showHudInfo;
+    }
+
+    public static synchronized int barScalePercent() {
+        return data.barScalePercent;
+    }
+
+    public static synchronized String barColorPreset() {
+        return data.barColorPreset;
+    }
+
+    public static synchronized int barOpacityPercent() {
+        return data.barOpacityPercent;
+    }
+
+    public static synchronized void setShowHudInfo(boolean enabled) {
+        data.showHudInfo = enabled;
+        save();
+    }
+
+    public static synchronized void setBarScalePercent(int percent) {
+        data.barScalePercent = normalizeBarScale(percent);
+        save();
+    }
+
+    public static synchronized void setBarColorPreset(String colorPreset) {
+        data.barColorPreset = normalizeBarColor(colorPreset);
+        save();
+    }
+
+    public static synchronized void setBarOpacityPercent(int percent) {
+        data.barOpacityPercent = normalizeBarOpacity(percent);
+        save();
     }
 
     public static synchronized void setMaxBackgroundTabs(int maxBackgroundTabs) {
@@ -142,6 +181,31 @@ public final class TabbyConfig {
         return key;
     }
 
+    private static int normalizeBarScale(int percent) {
+        return switch (percent) {
+            case 75, 85, 100, 115, 125 -> percent;
+            default -> 100;
+        };
+    }
+
+    private static int normalizeBarOpacity(int percent) {
+        if (percent < 20 || percent > 100) {
+            return 90;
+        }
+        return Math.max(20, Math.min(100, Math.round(percent / 10.0f) * 10));
+    }
+
+    private static String normalizeBarColor(String colorPreset) {
+        if (colorPreset == null) {
+            return "blue";
+        }
+        String normalized = colorPreset.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "blue", "purple", "green", "orange", "graphite" -> normalized;
+            default -> "blue";
+        };
+    }
+
     private static String normalizeBarMode(String mode) {
         if (mode == null) {
             return "hover_or_alt";
@@ -184,6 +248,10 @@ public final class TabbyConfig {
         public int keySelectFirstTab = GLFW.GLFW_KEY_1;
         public boolean showInMenus = true;
         public String inGameBarMode = "hover_or_alt";
+        public boolean showHudInfo = false;
+        public int barScalePercent = 100;
+        public String barColorPreset = "blue";
+        public int barOpacityPercent = 90;
         public boolean restoreServerAddresses = false;
         public List<String> restoredServerAddresses = new ArrayList<>();
     }

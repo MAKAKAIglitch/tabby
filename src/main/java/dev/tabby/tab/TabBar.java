@@ -16,22 +16,22 @@ import java.util.List;
  * Draws and handles Tabby's browser-style tab strip.
  */
 public final class TabBar {
-    private static final int BAR_TOP = 4;
-    private static final int BAR_HEIGHT = 25;
-    private static final int LEFT_MARGIN = 5;
-    private static final int GAP = 3;
-    private static final int PLUS_WIDTH = 24;
-    private static final int CLOSE_WIDTH = 20;
-    private static final int MAX_TAB_WIDTH = 170;
+    private static final int BASE_BAR_TOP = 4;
+    private static final int BASE_BAR_HEIGHT = 25;
+    private static final int BASE_LEFT_MARGIN = 5;
+    private static final int BASE_GAP = 3;
+    private static final int BASE_PLUS_WIDTH = 24;
+    private static final int BASE_CLOSE_WIDTH = 20;
+    private static final int BASE_MAX_TAB_WIDTH = 170;
 
-    private static final int BAR_BACKGROUND = 0xE611161D;
-    private static final int ACTIVE_BACKGROUND = 0xFF293B4B;
-    private static final int INACTIVE_BACKGROUND = 0xFF202832;
-    private static final int ACTIVE_ACCENT = 0xFF69B7F0;
-    private static final int HOVER_ACCENT = 0xFF415B70;
+    private static final int BASE_BAR_BACKGROUND = 0xE611161D;
+    private static final int BASE_ACTIVE_BACKGROUND = 0xFF293B4B;
+    private static final int BASE_INACTIVE_BACKGROUND = 0xFF202832;
+    private static final int BASE_ACTIVE_ACCENT = 0xFF69B7F0;
+    private static final int BASE_HOVER_ACCENT = 0xFF415B70;
     private static final int TEXT_COLOR = 0xFFF1F5F9;
     private static final int MUTED_TEXT_COLOR = 0xFFB6C1CC;
-    private static final int CLOSE_HOVER_COLOR = 0xFF7A3540;
+    private static final int BASE_CLOSE_HOVER_COLOR = 0xFF7A3540;
 
     private static boolean initialized;
     private static int draggingTabId = -1;
@@ -43,6 +43,74 @@ public final class TabBar {
     private static boolean dragStarted;
 
     private TabBar() {
+    }
+
+    private static int scaled(int value) {
+        return Math.max(1, Math.round(value * TabbyConfig.barScalePercent() / 100.0f));
+    }
+
+    private static int barTop() { return scaled(BASE_BAR_TOP); }
+    private static int barHeight() { return scaled(BASE_BAR_HEIGHT); }
+    private static int leftMargin() { return scaled(BASE_LEFT_MARGIN); }
+    private static int gap() { return scaled(BASE_GAP); }
+    private static int plusWidth() { return scaled(BASE_PLUS_WIDTH); }
+    private static int closeWidth() { return scaled(BASE_CLOSE_WIDTH); }
+    private static int maxTabWidth() { return scaled(BASE_MAX_TAB_WIDTH); }
+
+    private static int withOpacity(int argb) {
+        int opacity = TabbyConfig.barOpacityPercent();
+        int alpha = (int) Math.round(255.0 * opacity / 100.0);
+        return (alpha << 24) | (argb & 0x00FFFFFF);
+    }
+
+    private static int activeBackgroundColor() {
+        return switch (TabbyConfig.barColorPreset()) {
+            case "purple" -> 0xFF3D2F50;
+            case "green" -> 0xFF24463A;
+            case "orange" -> 0xFF4A3525;
+            case "graphite" -> 0xFF363B43;
+            default -> BASE_ACTIVE_BACKGROUND;
+        };
+    }
+
+    private static int inactiveBackgroundColor() {
+        return switch (TabbyConfig.barColorPreset()) {
+            case "purple" -> 0xFF282033;
+            case "green" -> 0xFF1C3029;
+            case "orange" -> 0xFF33271E;
+            case "graphite" -> 0xFF25292F;
+            default -> BASE_INACTIVE_BACKGROUND;
+        };
+    }
+
+    private static int activeAccentColor() {
+        return switch (TabbyConfig.barColorPreset()) {
+            case "purple" -> 0xFFCB9BFF;
+            case "green" -> 0xFF77D6A6;
+            case "orange" -> 0xFFFFB36C;
+            case "graphite" -> 0xFFD0D7E0;
+            default -> BASE_ACTIVE_ACCENT;
+        };
+    }
+
+    private static int hoverAccentColor() {
+        return switch (TabbyConfig.barColorPreset()) {
+            case "purple" -> 0xFF594171;
+            case "green" -> 0xFF35624E;
+            case "orange" -> 0xFF6A4A2F;
+            case "graphite" -> 0xFF4A515B;
+            default -> BASE_HOVER_ACCENT;
+        };
+    }
+
+    private static int closeHoverColor() {
+        return switch (TabbyConfig.barColorPreset()) {
+            case "purple" -> 0xFF723B52;
+            case "green" -> 0xFF365D4A;
+            case "orange" -> 0xFF794224;
+            case "graphite" -> 0xFF5A3C44;
+            default -> BASE_CLOSE_HOVER_COLOR;
+        };
     }
 
     public static void initialize() {
@@ -84,40 +152,40 @@ public final class TabBar {
         }
 
         Layout layout = layout(client, contexts);
-        graphics.fill(layout.left(), BAR_TOP - 2, layout.right(), BAR_TOP + BAR_HEIGHT + 2, BAR_BACKGROUND);
+        graphics.fill(layout.left(), barTop() - 2, layout.right(), barTop() + barHeight() + 2, withOpacity(BASE_BAR_BACKGROUND));
 
         for (TabSlot slot : layout.tabs()) {
             int right = slot.x() + slot.width();
-            int bottom = BAR_TOP + BAR_HEIGHT;
-            int background = slot.active() ? ACTIVE_BACKGROUND : INACTIVE_BACKGROUND;
-            graphics.fill(slot.x(), BAR_TOP, right, bottom, background);
+            int bottom = barTop() + barHeight();
+            int background = slot.active() ? withOpacity(activeBackgroundColor()) : withOpacity(inactiveBackgroundColor());
+            graphics.fill(slot.x(), barTop(), right, bottom, background);
             if (slot.active()) {
-                graphics.fill(slot.x(), BAR_TOP, right, BAR_TOP + 2, ACTIVE_ACCENT);
+                graphics.fill(slot.x(), barTop(), right, barTop() + 2, activeAccentColor());
             }
             if (dragStarted && slot.id() == draggingTabId) {
-                graphics.fill(slot.x(), bottom - 2, right, bottom, ACTIVE_ACCENT);
+                graphics.fill(slot.x(), bottom - 2, right, bottom, activeAccentColor());
             }
 
             boolean closeHover = layout.closeX(slot) <= layout.mouseX()
                 && layout.mouseX() < right
-                && BAR_TOP <= layout.mouseY()
+                && barTop() <= layout.mouseY()
                 && layout.mouseY() < bottom;
             if (closeHover) {
-                graphics.fill(right - CLOSE_WIDTH, BAR_TOP + 2, right, bottom - 2, CLOSE_HOVER_COLOR);
+                graphics.fill(right - closeWidth(), barTop() + 2, right, bottom - 2, withOpacity(closeHoverColor()));
             }
 
-            int textY = BAR_TOP + (BAR_HEIGHT - client.font.lineHeight) / 2;
+            int textY = barTop() + (barHeight() - client.font.lineHeight) / 2;
             int pinnedOffset = slot.pinned() ? 11 : 0;
             int pingWidth = slot.pingLabel().isEmpty() ? 0 : client.font.width(slot.pingLabel()) + 5;
             int memoryWidth = slot.memoryLabel().isEmpty() ? 0 : client.font.width(slot.memoryLabel()) + 5;
             int titleMaxWidth = Math.max(
                 10,
-                slot.width() - CLOSE_WIDTH - 12 - pinnedOffset - pingWidth - memoryWidth - 4
+                slot.width() - closeWidth() - 12 - pinnedOffset - pingWidth - memoryWidth - 4
             );
             String title = truncate(client, slot.title(), titleMaxWidth);
 
             if (slot.pinned()) {
-                graphics.drawString(client.font, "●", slot.x() + 3, textY, ACTIVE_ACCENT, false);
+                graphics.drawString(client.font, "●", slot.x() + 3, textY, activeAccentColor(), false);
             }
             graphics.drawString(
                 client.font,
@@ -131,7 +199,7 @@ public final class TabBar {
                 graphics.drawString(
                     client.font,
                     slot.pingLabel(),
-                    right - CLOSE_WIDTH - client.font.width(slot.pingLabel()) - 3,
+                    right - closeWidth() - client.font.width(slot.pingLabel()) - 3,
                     textY,
                     MUTED_TEXT_COLOR,
                     false
@@ -141,29 +209,29 @@ public final class TabBar {
                 graphics.drawString(
                     client.font,
                     slot.memoryLabel(),
-                    right - CLOSE_WIDTH - pingWidth - client.font.width(slot.memoryLabel()) - 4,
+                    right - closeWidth() - pingWidth - client.font.width(slot.memoryLabel()) - 4,
                     textY,
-                    ACTIVE_ACCENT,
+                    activeAccentColor(),
                     false
                 );
             }
             graphics.drawString(
                 client.font,
                 "×",
-                right - CLOSE_WIDTH + 5,
+                right - closeWidth() + 5,
                 textY,
                 closeHover ? TEXT_COLOR : MUTED_TEXT_COLOR,
                 false
             );
         }
 
-        graphics.fill(layout.plusX(), BAR_TOP, layout.plusX() + PLUS_WIDTH, BAR_TOP + BAR_HEIGHT, HOVER_ACCENT);
+        graphics.fill(layout.plusX(), barTop(), layout.plusX() + plusWidth(), barTop() + barHeight(), withOpacity(hoverAccentColor()));
         int plusWidth = client.font.width("+");
         graphics.drawString(
             client.font,
             "+",
-            layout.plusX() + (PLUS_WIDTH - plusWidth) / 2,
-            BAR_TOP + (BAR_HEIGHT - client.font.lineHeight) / 2,
+            layout.plusX() + (plusWidth() - plusWidth) / 2,
+            barTop() + (barHeight() - client.font.lineHeight) / 2,
             TEXT_COLOR,
             false
         );
@@ -171,7 +239,7 @@ public final class TabBar {
 
     public static void renderHudMemory(Minecraft client, GuiGraphics graphics) {
         TabContext active = TabManager.activeContext();
-        if (client == null || active == null || client.level == null) {
+        if (!TabbyConfig.showHudInfo() || client == null || active == null || client.level == null) {
             return;
         }
 
@@ -205,7 +273,7 @@ public final class TabBar {
         }
 
         Layout layout = layout(client, contexts);
-        if (mouseY < BAR_TOP || mouseY >= BAR_TOP + BAR_HEIGHT
+        if (mouseY < barTop() || mouseY >= barTop() + barHeight()
             || mouseX < layout.left() || mouseX >= layout.right()) {
             return false;
         }
@@ -235,7 +303,7 @@ public final class TabBar {
             return true;
         }
 
-        if (mouseX >= layout.plusX() && mouseX < layout.plusX() + PLUS_WIDTH) {
+        if (mouseX >= layout.plusX() && mouseX < layout.plusX() + plusWidth()) {
             resetDrag();
             TabManager.createTab();
             return true;
@@ -250,14 +318,14 @@ public final class TabBar {
         int count = contexts.size();
         int tabsWidthAvailable = Math.max(
             count,
-            screenWidth - LEFT_MARGIN * 2 - PLUS_WIDTH - GAP * (count + 1)
+            screenWidth - leftMargin() * 2 - plusWidth() - gap() * (count + 1)
         );
         int tabWidth = count == 0
             ? 0
-            : Math.max(1, Math.min(MAX_TAB_WIDTH, tabsWidthAvailable / count));
+            : Math.max(1, Math.min(maxTabWidth(), tabsWidthAvailable / count));
 
         List<TabSlot> slots = new ArrayList<>(count);
-        int x = LEFT_MARGIN;
+        int x = leftMargin();
         for (TabContext context : contexts) {
             String pingLabel = "";
             if (context.serverData != null && context.serverData.ip != null && !context.serverData.ip.isBlank()) {
@@ -266,7 +334,7 @@ public final class TabBar {
                     : "—";
             }
             boolean active = context.id() == TabManager.activeId();
-            String memoryLabel = active ? TabMemoryUsage.sample(context).compactLabel() : "";
+            String memoryLabel = active && TabbyConfig.showHudInfo() ? TabMemoryUsage.sample(context).compactLabel() : "";
             slots.add(new TabSlot(
                 context.id(),
                 context.title(),
@@ -277,14 +345,14 @@ public final class TabBar {
                 pingLabel,
                 memoryLabel
             ));
-            x += tabWidth + GAP;
+            x += tabWidth + gap();
         }
 
         int plusX = x;
-        int right = Math.min(screenWidth - LEFT_MARGIN, plusX + PLUS_WIDTH);
+        int right = Math.min(screenWidth - leftMargin(), plusX + plusWidth());
         int mouseX = (int) (client.mouseHandler.xpos() * client.getWindow().getGuiScaledWidth() / client.getWindow().getScreenWidth());
         int mouseY = (int) (client.mouseHandler.ypos() * client.getWindow().getGuiScaledHeight() / client.getWindow().getScreenHeight());
-        return new Layout(LEFT_MARGIN, right, plusX, slots, mouseX, mouseY);
+        return new Layout(leftMargin(), right, plusX, slots, mouseX, mouseY);
     }
 
     public static void handleMouseMove(Minecraft client, double rawMouseX, double rawMouseY) {
@@ -326,7 +394,7 @@ public final class TabBar {
         if (!dragStarted && Math.hypot(mouseX - dragStartX, mouseY - dragStartY) >= 4.0) {
             dragStarted = true;
         }
-        if (!dragStarted || mouseY < BAR_TOP || mouseY >= BAR_TOP + BAR_HEIGHT) {
+        if (!dragStarted || mouseY < barTop() || mouseY >= barTop() + barHeight()) {
             return;
         }
 
@@ -395,7 +463,7 @@ public final class TabBar {
     }
 
     static int stripCenterY() {
-        return BAR_TOP + BAR_HEIGHT / 2;
+        return barTop() + barHeight() / 2;
     }
 
     static int tabCenterX(Minecraft client, int tabId) {
@@ -408,14 +476,14 @@ public final class TabBar {
     }
 
     static int plusButtonCenterX(Minecraft client) {
-        return layout(client, TabManager.contexts()).plusX() + PLUS_WIDTH / 2;
+        return layout(client, TabManager.contexts()).plusX() + plusWidth() / 2;
     }
 
     static int closeButtonCenterX(Minecraft client, int tabId) {
         Layout layout = layout(client, TabManager.contexts());
         for (TabSlot slot : layout.tabs()) {
             if (slot.id() == tabId) {
-                return layout.closeX(slot) + CLOSE_WIDTH / 2;
+                return layout.closeX(slot) + closeWidth() / 2;
             }
         }
         return -1;
@@ -442,7 +510,7 @@ public final class TabBar {
 
     private record Layout(int left, int right, int plusX, List<TabSlot> tabs, int mouseX, int mouseY) {
         private int closeX(TabSlot slot) {
-            return slot.x() + slot.width() - CLOSE_WIDTH;
+            return slot.x() + slot.width() - closeWidth();
         }
     }
 }

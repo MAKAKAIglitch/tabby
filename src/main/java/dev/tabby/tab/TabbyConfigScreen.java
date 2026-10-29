@@ -19,6 +19,10 @@ public final class TabbyConfigScreen extends Screen {
     private Component statusMessage;
     private Button tabLimitButton;
     private Button restoreAddressesButton;
+    private Button hudInfoButton;
+    private Button barSizeButton;
+    private Button barColorButton;
+    private Button barOpacityButton;
     private Button createShortcutButton;
     private Button closeShortcutButton;
     private Button nextShortcutButton;
@@ -48,12 +52,36 @@ public final class TabbyConfigScreen extends Screen {
         ).bounds(wideX, 73, 260, 20).build());
 
         int halfWidth = 127;
+        this.hudInfoButton = this.addRenderableWidget(Button.builder(
+            this.hudInfoMessage(),
+            button -> {
+                TabbyConfig.setShowHudInfo(!TabbyConfig.showHudInfo());
+                this.statusMessage = Component.literal("Saved.");
+                this.refreshMessages();
+            }
+        ).bounds(centerX - 130, 98, halfWidth, 20).build());
+
+        this.barSizeButton = this.addRenderableWidget(Button.builder(
+            this.barSizeMessage(),
+            button -> this.cycleBarSize()
+        ).bounds(centerX + 3, 98, halfWidth, 20).build());
+
+        this.barColorButton = this.addRenderableWidget(Button.builder(
+            this.barColorMessage(),
+            button -> this.cycleBarColor()
+        ).bounds(centerX - 130, 122, halfWidth, 20).build());
+
+        this.barOpacityButton = this.addRenderableWidget(Button.builder(
+            this.barOpacityMessage(),
+            button -> this.cycleBarOpacity()
+        ).bounds(centerX + 3, 122, halfWidth, 20).build());
+
         this.createShortcutButton = this.addRenderableWidget(this.keyButton(
-            centerX - 130, 108, halfWidth, Binding.CREATE_TAB));
+            centerX - 130, 150, halfWidth, Binding.CREATE_TAB));
         this.closeShortcutButton = this.addRenderableWidget(this.keyButton(
-            centerX + 3, 108, halfWidth, Binding.CLOSE_TAB));
+            centerX + 3, 150, halfWidth, Binding.CLOSE_TAB));
         this.nextShortcutButton = this.addRenderableWidget(this.keyButton(
-            centerX - 130, 134, halfWidth, Binding.NEXT_TAB));
+            centerX - 130, 176, halfWidth, Binding.NEXT_TAB));
 
         this.addRenderableWidget(Button.builder(
             Component.literal("Done"),
@@ -92,6 +120,78 @@ public final class TabbyConfigScreen extends Screen {
     private Component restoreAddressesMessage() {
         return Component.literal("Restore server addresses: "
             + (TabbyConfig.restoreServerAddresses() ? "On" : "Off"));
+    }
+
+    private void cycleBarSize() {
+        int[] values = {75, 85, 100, 115, 125};
+        int current = TabbyConfig.barScalePercent();
+        int next = values[0];
+        for (int index = 0; index < values.length; index++) {
+            if (values[index] == current) {
+                next = values[(index + 1) % values.length];
+                break;
+            }
+        }
+        TabbyConfig.setBarScalePercent(next);
+        this.statusMessage = Component.literal("Saved.");
+        this.refreshMessages();
+    }
+
+    private void cycleBarColor() {
+        String[] values = {"blue", "purple", "green", "orange", "graphite"};
+        String current = TabbyConfig.barColorPreset();
+        int currentIndex = 0;
+        for (int index = 0; index < values.length; index++) {
+            if (values[index].equals(current)) {
+                currentIndex = index;
+                break;
+            }
+        }
+        TabbyConfig.setBarColorPreset(values[(currentIndex + 1) % values.length]);
+        this.statusMessage = Component.literal("Saved.");
+        this.refreshMessages();
+    }
+
+    private void cycleBarOpacity() {
+        int[] values = {20, 40, 60, 80, 100};
+        int current = TabbyConfig.barOpacityPercent();
+        int next = values[values.length - 1];
+        for (int index = 0; index < values.length; index++) {
+            if (values[index] == current) {
+                next = values[(index + 1) % values.length];
+                break;
+            }
+            if (index + 1 < values.length && current > values[index] && current < values[index + 1]) {
+                next = values[index + 1];
+                break;
+            }
+        }
+        TabbyConfig.setBarOpacityPercent(next);
+        this.statusMessage = Component.literal("Saved.");
+        this.refreshMessages();
+    }
+
+    private Component hudInfoMessage() {
+        return Component.literal("HUD info plaque: " + (TabbyConfig.showHudInfo() ? "On" : "Off"));
+    }
+
+    private Component barSizeMessage() {
+        return Component.literal("Tab bar size: " + TabbyConfig.barScalePercent() + "%");
+    }
+
+    private Component barColorMessage() {
+        return Component.literal("Tab bar color: " + capitalize(TabbyConfig.barColorPreset()));
+    }
+
+    private Component barOpacityMessage() {
+        return Component.literal("Tab bar opacity: " + TabbyConfig.barOpacityPercent() + "%");
+    }
+
+    private static String capitalize(String value) {
+        if (value == null || value.isBlank()) {
+            return "Blue";
+        }
+        return value.substring(0, 1).toUpperCase(Locale.ROOT) + value.substring(1);
     }
 
     private Component bindingMessage(Binding binding) {
@@ -139,6 +239,18 @@ public final class TabbyConfigScreen extends Screen {
         }
         if (this.restoreAddressesButton != null) {
             this.restoreAddressesButton.setMessage(this.restoreAddressesMessage());
+        }
+        if (this.hudInfoButton != null) {
+            this.hudInfoButton.setMessage(this.hudInfoMessage());
+        }
+        if (this.barSizeButton != null) {
+            this.barSizeButton.setMessage(this.barSizeMessage());
+        }
+        if (this.barColorButton != null) {
+            this.barColorButton.setMessage(this.barColorMessage());
+        }
+        if (this.barOpacityButton != null) {
+            this.barOpacityButton.setMessage(this.barOpacityMessage());
         }
         if (this.createShortcutButton != null) {
             this.createShortcutButton.setMessage(this.bindingMessage(Binding.CREATE_TAB));
@@ -213,11 +325,11 @@ public final class TabbyConfigScreen extends Screen {
             this.font,
             "Ctrl+1 through Ctrl+9 select tabs by position.",
             this.width / 2,
-            this.height - 49,
+            this.height - 45,
             0xC4D5E2
         );
         if (this.statusMessage != null) {
-            graphics.drawCenteredString(this.font, this.statusMessage, this.width / 2, this.height - 62, 0xE8D28B);
+            graphics.drawCenteredString(this.font, this.statusMessage, this.width / 2, this.height - 60, 0xE8D28B);
         }
     }
 

@@ -144,6 +144,7 @@ public final class NetworkSmokeTest {
         phaseTicks++;
         if (isJoined(context(1))) {
             validateConnections(client);
+            verifyActiveWorldRecovery(client);
 
             TabManager.switchTo(0);
             Screen activeScreen = client.screen;
@@ -300,6 +301,24 @@ public final class NetworkSmokeTest {
             "The tab bar must be hidden in other menus such as Options");
         require(!TabBar.isVisibleOnScreen(null),
             "The tab bar must be hidden during gameplay when no screen is open");
+    }
+
+    private static void verifyActiveWorldRecovery(Minecraft client) {
+        TabContext active = context(TabManager.activeId());
+        ClientLevel expectedLevel = client.level;
+        var expectedPlayer = client.player;
+        require(active != null && expectedLevel != null && expectedPlayer != null,
+            "Active world recovery test requires a connected player and world");
+
+        // Reproduce the critical state from the Meteor AutoBreed crash report. This is
+        // restored synchronously before any subsequent client-tick listeners can observe it.
+        client.level = null;
+        TabManager.captureCurrentState();
+
+        require(client.level == expectedLevel, "Tabby failed to restore a missing active ClientLevel");
+        require(client.player == expectedPlayer, "Tabby failed to restore the active LocalPlayer with its world");
+        validateConnections(client);
+        LOGGER.info("Network smoke test: active world was restored before the next client tick");
     }
 
     private static void verifyTabStripInteractions(Minecraft client) {
