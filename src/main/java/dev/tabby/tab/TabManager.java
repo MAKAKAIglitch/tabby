@@ -1067,7 +1067,7 @@ public final class TabManager {
                     && nativePendingConnection == null
                     && context.networkConnection != null
                     && context.networkConnection.isConnected()) {
-                    context.networkConnection.tick();
+                    runIn(context.id(), context.networkConnection::tick);
                 }
                 continue;
             }
