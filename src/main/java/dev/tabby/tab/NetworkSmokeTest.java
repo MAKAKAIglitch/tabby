@@ -611,6 +611,7 @@ public final class NetworkSmokeTest {
         phaseTicks++;
         TabContext network = contextOrNull(networkAfterSingleplayerTabId);
         if (isJoined(network)) {
+            verifyNestedPacketContextRestore(client);
             assertSingleplayerWorldRetained(client);
             require(network.level != savedSingleplayerLevel, "Network tab reused the single-player ClientLevel");
             require(network.player != savedSingleplayerPlayer, "Network tab reused the single-player LocalPlayer");
@@ -707,6 +708,45 @@ public final class NetworkSmokeTest {
         } else if (phaseTicks > SINGLEPLAYER_TIMEOUT_TICKS) {
             fail("The second single-player world was not blocked within " + SINGLEPLAYER_TIMEOUT_TICKS + " ticks");
         }
+    }
+
+    /**
+     * Reproduces a nested packet task while the outer login handler has a transient,
+     * partially initialized gameMode. A background tab switch must restore that exact
+     * transient state without publishing it to the persistent network-tab snapshot.
+     */
+    private static void verifyNestedPacketContextRestore(Minecraft client) {
+        TabContext singleplayer = contextOrNull(singleplayerTabId);
+        require(singleplayer != null, "Nested-context test has no single-player tab");
+
+        TabManager.runIn(networkAfterSingleplayerTabId, () -> {
+            var savedGameMode = client.gameMode;
+            var savedLevel = client.level;
+            require(savedGameMode != null, "Nested-context test must start with an initialized game mode");
+
+            client.gameMode = null;
+            TabManager.runIn(singleplayerTabId, () -> {
+                require(
+                    client.gameMode == singleplayer.gameMode,
+                    "Nested-context test did not install the single-player game mode"
+                );
+            });
+
+            require(
+                client.gameMode == null,
+                "Nested background task replaced the outer login handler's transient gameMode"
+            );
+            require(
+                client.level == savedLevel,
+                "Nested background task did not restore the outer login handler's transient level"
+            );
+            client.gameMode = savedGameMode;
+        });
+
+        TabContext network = contextOrNull(networkAfterSingleplayerTabId);
+        require(network != null && network.gameMode != null,
+            "Nested-context test corrupted the persistent network game mode");
+        LOGGER.info("Network smoke test: nested packet tasks restore transient login state without corrupting either tab");
     }
 
     private static void assertSingleplayerWorldRetained(Minecraft client) {

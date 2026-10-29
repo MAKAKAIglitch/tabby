@@ -893,11 +893,22 @@ public final class TabManager {
             return;
         }
 
+        Integer previousExecutionId = EXECUTION_CONTEXT.get();
+        TabContext previousState = previous;
         if (previous != null) {
-            previous.captureFrom(client);
+            if (previousExecutionId == null) {
+                // At the outermost packet boundary the visible context is stable and can
+                // be committed to its persistent snapshot.
+                previous.captureFrom(client);
+            } else {
+                // A nested runIn can happen from Minecraft's forced tick while an outer
+                // login handler is halfway through setLevel/createPlayer. Save the exact
+                // transient globals for restoration, but never publish them into the
+                // persistent tab snapshot (for example gameMode == null during login).
+                previousState = TabContext.capture(client, previousId, previous.title());
+            }
         }
 
-        Integer previousExecutionId = EXECUTION_CONTEXT.get();
         try {
             EXECUTION_CONTEXT.set(tabId);
             // Never swap the global Screen reference while executing a background packet.
@@ -912,8 +923,8 @@ public final class TabManager {
                 target.captureFrom(client);
             } finally {
                 try {
-                    if (previous != null) {
-                        previous.applyTo(client, false);
+                    if (previousState != null) {
+                        previousState.applyTo(client, false);
                     }
                 } finally {
                     if (previousExecutionId == null) {
