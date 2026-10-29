@@ -5,6 +5,10 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
+// Capture scalar values once so task action closures remain configuration-cache compatible.
+def tabbyVersion = project.version.toString()
+def tabbyArchiveName = project.archives_base_name.toString()
+
 base {
     archivesName = project.archives_base_name
 }
@@ -22,10 +26,10 @@ dependencies {
 }
 
 processResources {
-    inputs.property "version", project.version
+    inputs.property "version", tabbyVersion
 
     filesMatching("fabric.mod.json") {
-        expand "version": project.version
+        expand "version": tabbyVersion
     }
 }
 
@@ -42,6 +46,6 @@ java {
 
 jar {
     from("LICENSE") {
-        rename { "LICENSE_${project.archives_base_name}" }
+        rename { "LICENSE_${tabbyArchiveName}" }
     }
 }
