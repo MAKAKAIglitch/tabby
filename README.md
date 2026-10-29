@@ -10,7 +10,7 @@ Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its
 
 **Stage 4 verified by CI.** The test connected one client to two offline-mode servers, switched between them for 2400 ticks, then opened an actual integrated single-player world, connected a different tab to a network server, switched back to verify the same world/player/memory connection/IntegratedServer remained live, and confirmed that opening a second single-player save was blocked. It then closed the single-player and network tabs and returned to the title screen. CI also verifies key release, the configured background-tab limit (default 4), duplicate-connection protection, and clean shutdown.
 
-**Stage 5 verified by CI.** `config/tabby.json` exposes the background-tab limit, Ctrl shortcut key codes, menu visibility, in-game bar mode (`always`, `hover_or_alt`, `hidden`), and optional address-only server restoration (`restoreServerAddresses`). The tab strip shows pin state and cached ping when available, supports right-click pin/unpin and drag reordering, and reconnects saved server addresses when restoration is enabled. CI checks default config values, tab order/pinning, and deduplicated address persistence.
+**Stage 5 verified by CI.** `config/tabby.json` stores the background-tab limit, Ctrl shortcut key codes, and optional address-only server restoration (`restoreServerAddresses`). With Mod Menu installed, **Mods → Tabby → Settings** opens a native Minecraft configuration screen to edit the tab limit, restoration option, and Ctrl+T/Ctrl+W/Ctrl+Tab shortcuts. The tab strip shows pin state and cached ping when available, supports right-click pin/unpin and drag reordering, and reconnects saved server addresses when restoration is enabled. CI checks default config values, tab order/pinning, and deduplicated address persistence.
 
 **Stage 6 verified by CI (2026-10-29).** [Workflow run 40816763509 passed](https://github.com/MAKAKAIglitch/tabby/actions/runs/40816763509): the baseline Fabric API network/single-player regression suite and four isolated compatibility runs all passed. The test downloaded SHA-512-pinned Fabric builds for Minecraft 1.21.4 and verified that each optional mod could load a real local server world, keep separate tab renderers, and survive six context switches. Results:
 
@@ -31,7 +31,7 @@ These are **headless smoke tests**, not a claim of full gameplay compatibility. 
 - Fabric Loader 0.16.x
 - Fabric API for Minecraft 1.21.4
 
-The project uses Fabric Loom and Mojang's official mappings. No third-party mod is required to build it.
+The project uses Fabric Loom and Mojang's official mappings. The Mod Menu API is compile-only: Mod Menu is optional at runtime.
 
 ## Build and run
 
@@ -63,7 +63,7 @@ The first build downloads the Gradle distribution, required dependencies, and (o
 
 On Windows, a successful `build` automatically opens File Explorer to `build\\libs`, where the compiled mod JAR is stored. Set `TABBY_OPEN_MOD_FOLDER=0` to turn this off. This is disabled automatically in CI and on non-Windows systems.
 
-Use **Ctrl+T** to create a tab, **Ctrl+W** to close the active tab, **Ctrl+Tab** to cycle tabs, and **Ctrl+1** through **Ctrl+9** to select a tab by position. The tab strip includes a title, close control, and plus control.
+Use **Ctrl+T** to create a tab, **Ctrl+W** to close the active tab, **Ctrl+Tab** to cycle tabs, and **Ctrl+1** through **Ctrl+9** to select a tab by position. The strip is visible only on the **main title screen** and the **pause menu**; it never renders over the in-game HUD or other screens. With Mod Menu installed, open **Mods → Tabby → Settings** to change the background-tab limit, server-address restoration, and Ctrl shortcut keys.
 
 ## Development workflow
 

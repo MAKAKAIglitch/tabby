@@ -10,6 +10,8 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import dev.tabby.mixin.ChatComponentAccessor;
@@ -289,7 +291,21 @@ public final class NetworkSmokeTest {
             + ", entityB=" + hasNamedEntity(serverB, ENTITY_B_MARKER) + "]";
     }
 
+    private static void verifyTabBarVisibility(Minecraft client) {
+        require(TabBar.isVisibleOnScreen(new TitleScreen()),
+            "The tab bar must be visible on the main title screen");
+        require(TabBar.isVisibleOnScreen(new PauseScreen(true)),
+            "The tab bar must be visible in the pause menu");
+        require(!TabBar.isVisibleOnScreen(new OptionsScreen(new TitleScreen(), client.options)),
+            "The tab bar must be hidden in other menus such as Options");
+        require(!TabBar.isVisibleOnScreen(null),
+            "The tab bar must be hidden during gameplay when no screen is open");
+    }
+
     private static void verifyTabStripInteractions(Minecraft client) {
+        verifyTabBarVisibility(client);
+        client.setScreen(new PauseScreen(true));
+
         pressShortcut(client, GLFW.GLFW_KEY_1);
         require(TabManager.activeId() == 0, "Ctrl+1 did not select the first tab");
 
@@ -335,6 +351,7 @@ public final class NetworkSmokeTest {
         require(TabManager.activeId() == 1, "Ctrl+Tab did not restore the second tab");
         validateConnections(client);
         verifyDuplicateConnectionGuard(client);
+        client.setScreen(null);
         verifyStabilityControls(client);
         verifyTabReorderAndPinning(client);
         LOGGER.info("Network smoke test: tab strip, duplicate guard, key reset, tab limit, and single-player guard passed");

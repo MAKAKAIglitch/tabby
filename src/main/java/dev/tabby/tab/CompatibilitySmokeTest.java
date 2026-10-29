@@ -150,6 +150,9 @@ public final class CompatibilitySmokeTest {
             require(FabricLoader.getInstance().isModLoaded("sodium"),
                 "Iris compatibility test requires its Sodium dependency to be loaded too");
         }
+        if ("modmenu".equals(MOD_ID)) {
+            dev.tabby.compat.ModMenuIntegrationSmokeTest.verify();
+        }
         LOGGER.info("Compatibility test: verified optional mod '{}' is loaded", MOD_ID);
     }
 

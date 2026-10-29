@@ -11,6 +11,7 @@ import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.network.Connection;
@@ -537,6 +538,7 @@ public final class TabManager {
             return;
         }
 
+        boolean pauseMenuRequested = client.screen instanceof PauseScreen;
         TabContext previous = TABS.get(activeId);
         TabContext target = TABS.get(tabId);
         if (previous != null) {
@@ -553,6 +555,10 @@ public final class TabManager {
             // LevelRenderer.setLevel() invokes allChanged(), rebuilding world chunks for this tab.
             target.levelRenderer.setLevel(target.level);
             target.particleEngine.setLevel(target.level);
+            if (pauseMenuRequested && target.level != null
+                && (target.screen == null || target.screen instanceof PauseScreen)) {
+                target.screen = new PauseScreen(true);
+            }
             client.setScreen(target.screen);
             KeyMapping.releaseAll();
             client.mouseHandler.setIgnoreFirstMove();

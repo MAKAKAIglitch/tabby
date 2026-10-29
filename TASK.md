@@ -22,10 +22,10 @@ Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style
 
 - [x] Stage 0 — scaffold merged into `main`; build and client startup smoke test passed in GitHub Actions.
 - [x] Stage 1 — networking prototype validated on `main`: CI connected one client to two local offline-mode 1.21.4 servers, verified distinct world/player/connection instances, and switched contexts repeatedly while both connections stayed alive for at least 2400 ticks (the successful run reached 5200 ticks). Background-screen isolation also passes. Full content-level chat/inventory/entity isolation and tab lifecycle cleanup remain follow-up validation; no UI existed during this stage.
-- [x] Stage 2 — tab strip, active-tab highlight, titles, close/plus controls, and Ctrl+T/Ctrl+W/Ctrl+Tab/Ctrl+1..9 verified by CI. The test exercised the actual keyboard and click paths, then kept both server connections alive for 2400 ticks.
+- [x] Stage 2 — tab strip, active-tab highlight, titles, close/plus controls, and Ctrl+T/Ctrl+W/Ctrl+Tab/Ctrl+1..9 verified by CI. The strip is visible only on `TitleScreen` and `PauseScreen`, not over the gameplay HUD; CI checks both allowed screens and a hidden Options screen.
 - [x] Stage 3 — duplicate attempts are intercepted before vanilla disconnects the active tab; disconnect callbacks release tab-owned references; CI covers duplicate blocking, closing a live tab, and closing the final tab.
 - [x] Stage 4 — CI verifies key release on switch, the JSON-configured background-tab limit, 2400-tick dual-connection stability, real integrated single-player retention while connecting to a network tab, blocking a second single-player world, connection cleanup, and clean client shutdown. Sound stop, cursor reset, renderer refresh, and integrated-server preservation hooks are implemented.
-- [x] Stage 5 — configuration and polish verified by CI: JSON settings, configurable shortcuts/bar mode, ping labels, drag reordering, pin/unpin, and optional deduplicated address-only restoration all passed their automated checks.
+- [x] Stage 5 — JSON settings, configurable Ctrl shortcuts, native Mod Menu settings screen, ping labels, drag reordering, pin/unpin, and optional deduplicated address-only restoration are covered by automated checks.
 - [x] Stage 6 — CI passed on 2026-10-29 (run [40816763509](https://github.com/MAKAKAIglitch/tabby/actions/runs/40816763509)): baseline Fabric API test plus separate Sodium 0.6.13, Iris 1.8.8 + Sodium, Lithium 0.15.3, and Mod Menu 13.0.2 client/world/context-switch smoke tests all passed. The tested CI renderer is software-rendered (llvmpipe); hardware-GPU and enabled-shaderpack testing remains open. Full content-level chat/inventory/entity isolation also remains a follow-up.
 
 ## Stage 0 — scaffold
@@ -48,7 +48,7 @@ Acceptance test: connect to server A, create a second tab, connect to server B (
 
 ## Stage 2 — tab bar
 
-Render tabs using appropriate Fabric events for screens and in-game HUD. Show the tab title (server/world name or “Main Menu”), close control, plus control, active-tab highlight, and truncated long names. Intercept clicks only when they land in the tab bar.
+Render tabs through screen events only on `TitleScreen` and `PauseScreen`; do not render a tab bar in the in-game HUD or other screens. Show the tab title (server/world name or “Main Menu”), close control, plus control, active-tab highlight, and truncated long names. Intercept clicks only when they land in the tab bar.
 
 Support Ctrl+T, Ctrl+W, Ctrl+Tab, and Ctrl+1 through Ctrl+9. Confirm Fabric API 1.21.4 event names and signatures before implementing them.
 
@@ -62,7 +62,7 @@ Reset pressed inputs and mouse-grab state during a switch; stop audio from the t
 
 ## Stage 5 — configuration and polish
 
-Provide a JSON config for tab limit, key bindings, and bar visibility. Add a ping indicator, tab dragging/pinning, and optional restoration of tab server addresses after restart. Never store account credentials.
+Provide a JSON config and optional Mod Menu settings page for the tab limit, key bindings, and address restoration. Tab-bar visibility is fixed to the title screen and pause menu. Add a ping indicator, tab dragging/pinning, and optional restoration of tab server addresses after restart. Never store account credentials.
 
 ## Stage 6 — compatibility
 

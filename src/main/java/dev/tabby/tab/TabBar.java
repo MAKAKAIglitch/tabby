@@ -1,13 +1,12 @@
 package dev.tabby.tab;
 
-import net.fabricmc.fabric.api.client.rendering.v1.HudLayerRegistrationCallback;
-import net.fabricmc.fabric.api.client.rendering.v1.IdentifiedLayer;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.gui.screens.TitleScreen;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -51,34 +50,30 @@ public final class TabBar {
         initialized = true;
 
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
+            if (!isVisibleOnScreen(screen)) {
+                return;
+            }
+
             ScreenEvents.afterRender(screen).register(
                 (renderedScreen, graphics, mouseX, mouseY, tickDelta) -> {
-                    if (TabbyConfig.showInMenus()) {
+                    if (isVisibleOnScreen(renderedScreen)) {
                         render(client, graphics);
                     }
                 }
             );
             ScreenMouseEvents.allowMouseClick(screen).register(
-                (clickedScreen, mouseX, mouseY, button) -> !handleClick(client, mouseX, mouseY, button)
+                (clickedScreen, mouseX, mouseY, button) ->
+                    !isVisibleOnScreen(clickedScreen) || !handleClick(client, mouseX, mouseY, button)
             );
         });
+    }
 
-        HudLayerRegistrationCallback.EVENT.register(layeredDrawer ->
-            layeredDrawer.attachLayerAfter(
-                IdentifiedLayer.MISC_OVERLAYS,
-                ResourceLocation.fromNamespaceAndPath("tabby", "tab_bar"),
-                (graphics, tickCounter) -> {
-                    Minecraft client = Minecraft.getInstance();
-                    if (client.screen == null && client.getOverlay() == null && shouldShowInGameBar(client)) {
-                        render(client, graphics);
-                    }
-                }
-            )
-        );
+    public static boolean isVisibleOnScreen(Screen screen) {
+        return screen instanceof TitleScreen || screen instanceof PauseScreen;
     }
 
     public static void render(Minecraft client, GuiGraphics graphics) {
-        if (client == null) {
+        if (client == null || !isVisibleOnScreen(client.screen)) {
             return;
         }
         List<TabContext> contexts = TabManager.contexts();
@@ -156,13 +151,9 @@ public final class TabBar {
     }
 
     public static boolean handleClick(Minecraft client, double mouseX, double mouseY, int button) {
-        if (client == null || (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_RIGHT)) {
-            return false;
-        }
-        if (client.screen != null && !TabbyConfig.showInMenus()) {
-            return false;
-        }
-        if (client.screen == null && !shouldShowInGameBarAt(client, mouseY)) {
+        if (client == null
+            || !isVisibleOnScreen(client.screen)
+            || (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_RIGHT)) {
             return false;
         }
 
@@ -250,7 +241,14 @@ public final class TabBar {
     }
 
     public static void handleMouseMove(Minecraft client, double rawMouseX, double rawMouseY) {
-        if (client == null || draggingTabId < 0) {
+        if (client == null) {
+            return;
+        }
+        if (!isVisibleOnScreen(client.screen)) {
+            resetDrag();
+            return;
+        }
+        if (draggingTabId < 0) {
             return;
         }
 
@@ -313,30 +311,6 @@ public final class TabBar {
         dragStartX = 0;
         dragStartY = 0;
         dragStarted = false;
-    }
-
-    private static boolean shouldShowInGameBar(Minecraft client) {
-        double mouseY = client.mouseHandler.ypos()
-            * (double) client.getWindow().getGuiScaledHeight()
-            / (double) client.getWindow().getScreenHeight();
-        return shouldShowInGameBarAt(client, mouseY);
-    }
-
-    private static boolean shouldShowInGameBarAt(Minecraft client, double pointerY) {
-        String mode = TabbyConfig.inGameBarMode();
-        return switch (mode) {
-            case "always" -> true;
-            case "hover_or_alt" -> {
-                if (dragStarted) {
-                    yield true;
-                }
-                long window = client.getWindow().getWindow();
-                boolean altDown = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                    || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-                yield altDown || pointerY <= BAR_TOP + BAR_HEIGHT + 8;
-            }
-            default -> false;
-        };
     }
 
     static int stripCenterY() {

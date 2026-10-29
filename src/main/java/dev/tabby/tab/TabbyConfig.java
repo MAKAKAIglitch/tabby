@@ -86,6 +86,31 @@ public final class TabbyConfig {
         return data.restoreServerAddresses;
     }
 
+    public static synchronized void setMaxBackgroundTabs(int maxBackgroundTabs) {
+        data.maxBackgroundTabs = Math.max(1, Math.min(MAX_BACKGROUND_TABS, maxBackgroundTabs));
+        save();
+    }
+
+    public static synchronized void setKeyCreateTab(int key) {
+        data.keyCreateTab = normalizeKey(key, GLFW.GLFW_KEY_T);
+        save();
+    }
+
+    public static synchronized void setKeyCloseTab(int key) {
+        data.keyCloseTab = normalizeKey(key, GLFW.GLFW_KEY_W);
+        save();
+    }
+
+    public static synchronized void setKeyNextTab(int key) {
+        data.keyNextTab = normalizeKey(key, GLFW.GLFW_KEY_TAB);
+        save();
+    }
+
+    public static synchronized void setRestoreServerAddresses(boolean enabled) {
+        data.restoreServerAddresses = enabled;
+        save();
+    }
+
     public static synchronized List<String> restoredServerAddresses() {
         return List.copyOf(data.restoredServerAddresses);
     }

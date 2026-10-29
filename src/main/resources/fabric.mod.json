@@ -12,6 +12,9 @@
   "entrypoints": {
     "client": [
       "dev.tabby.TabbyClient"
+    ],
+    "modmenu": [
+      "dev.tabby.compat.TabbyModMenu"
     ]
   },
   "accessWidener": "tabby.accesswidener",
@@ -23,5 +26,8 @@
     "minecraft": "~1.21.4",
     "java": ">=21",
     "fabric-api": "*"
+  },
+  "suggests": {
+    "modmenu": ">=13.0.2"
   }
 }
