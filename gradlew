@@ -99,6 +99,7 @@ if [ "${TABBY_AUTO_JAVA:-1}" != "0" ]; then
         exit 1
     }
     export JAVA_HOME
+    printf '%s\n' "Tabby: using Java 21 from $JAVA_HOME" >&2
 fi
 
 # Use the maximum available, or set MAX_FD != -1 to use that value.

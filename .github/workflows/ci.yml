@@ -13,6 +13,29 @@ permissions:
   contents: read
 
 jobs:
+  windows-wrapper:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Verify Windows wrapper selects Java 21
+        shell: pwsh
+        run: |
+          $output = .\gradlew.bat --version 2>&1
+          $output | ForEach-Object { Write-Host $_ }
+          if ($LASTEXITCODE -ne 0) { throw "Gradle wrapper failed with exit code $LASTEXITCODE" }
+          $text = $output -join "`n"
+          if ($text -notmatch '(?m)(JVM|Launcher JVM): 21([.]|\s)') {
+            throw "Gradle did not start on Java 21."
+          }
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -24,6 +47,15 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+
+      - name: Validate Java selector shell syntax
+        run: sh -n gradle/auto-java.sh
+
+      - name: Verify wrapper selects Java 21
+        shell: bash
+        run: |
+          ./gradlew --version | tee gradle-version.txt
+          grep -Eq 'JVM: 21([.]|[[:space:]])|Launcher JVM: 21([.]|[[:space:]])' gradle-version.txt
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

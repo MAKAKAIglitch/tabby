@@ -45,6 +45,7 @@ if exist "%TABBY_JAVA_HOME_FILE%" del "%TABBY_JAVA_HOME_FILE%" >NUL 2>&1
 if not "%TABBY_BOOTSTRAP_EXIT%"=="0" goto tabbyJavaBootstrapFailed
 if not defined TABBY_JAVA_HOME goto tabbyJavaBootstrapFailed
 set "JAVA_HOME=%TABBY_JAVA_HOME%"
+echo Tabby: using Java 21 from "%JAVA_HOME%"
 :skipTabbyJavaBootstrap
 
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
@@ -102,6 +103,7 @@ exit /b %EXIT_CODE%
 
 :mainEnd
 if "%OS%"=="Windows_NT" endlocal
+goto omega
 
 :tabbyJavaBootstrapFailed
 echo ERROR: Tabby could not locate or bootstrap a valid Java 21 JDK. 1>&2
