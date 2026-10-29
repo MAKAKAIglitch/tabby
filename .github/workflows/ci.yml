@@ -29,10 +29,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Generate Minecraft sources
-        run: ./gradlew --no-daemon genSources
+        run: ./gradlew genSources
 
       - name: Build mod
-        run: ./gradlew --no-daemon build
+        run: ./gradlew build
 
       - name: Start two offline-mode Minecraft test servers
         shell: bash
@@ -134,7 +134,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 480s env TABBY_NETWORK_SMOKE_TEST=1 xvfb-run -a ./gradlew --no-daemon runClient 2>&1 | tee network-runclient.log
+          timeout 480s env TABBY_NETWORK_SMOKE_TEST=1 xvfb-run -a ./gradlew runClient 2>&1 | tee network-runclient.log
           status=${PIPESTATUS[0]}
           set -e
 
@@ -202,7 +202,7 @@ jobs:
             echo "Running compatibility smoke test with $mod..."
             set +e
             timeout 180s env TABBY_COMPAT_SMOKE_TEST=1 TABBY_COMPAT_MOD="$mod" \
-              xvfb-run -a ./gradlew --no-daemon runClient 2>&1 | tee "$log"
+              xvfb-run -a ./gradlew runClient 2>&1 | tee "$log"
             status=${PIPESTATUS[0]}
             set -e
 

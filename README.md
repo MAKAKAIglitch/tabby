@@ -35,6 +35,16 @@ The project uses Fabric Loom and Mojang's official mappings. No third-party mod 
 
 ## Build and run
 
+### Automatic Java selection
+
+The wrapper selects Java 21 automatically before starting Gradle. It checks `TABBY_JAVA_HOME`, `JAVA_HOME`, `JDK_HOME`, the active `PATH` Java, and common JDK installation locations. If no Java 21 installation is found, it downloads the latest Eclipse Temurin JDK 21 from Adoptium into the Gradle user cache and verifies the archive's SHA-256 checksum before using it. This also avoids accidentally launching this Gradle 8.12.1 build on an unsupported newer JVM.
+
+Set `TABBY_AUTO_JAVA=0` to disable Tabby's selection/bootstrap and use your normal Java environment. The build targets Java 21 in all cases.
+
+### Build speed
+
+Gradle reuses its daemon, configuration cache, and local build cache for repeat builds. Keep using the wrapper commands below so the selected Java and project-specific Gradle settings are applied.
+
 On Linux/macOS:
 
 ```sh
@@ -49,7 +59,7 @@ On Windows:
 .\gradlew.bat runClient
 ```
 
-The first Gradle run downloads the Gradle distribution and required Minecraft/Fabric dependencies. Build output is written to `build/libs/`; generated game files are kept under the ignored `run/` directory.
+The first build downloads the Gradle distribution, required dependencies, and (only if needed) Java 21. Later builds reuse the local caches. Build output is written to `build/libs/`; generated game files are kept under the ignored `run/` directory.
 
 Use **Ctrl+T** to create a tab, **Ctrl+W** to close the active tab, **Ctrl+Tab** to cycle tabs, and **Ctrl+1** through **Ctrl+9** to select a tab by position. The tab strip includes a title, close control, and plus control.
 

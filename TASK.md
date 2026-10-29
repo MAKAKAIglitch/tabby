@@ -74,3 +74,10 @@ Test on Fabric API alone, then separately with Sodium, Iris, Lithium, and Mod Me
 2. Some renderer and third-party mod state is global and may not be context-switchable.
 3. Each live world retains chunks and consumes memory.
 4. The same server may reject a duplicate connection using the same player name.
+
+
+## Build performance and Java selection
+
+- [x] Enable the Gradle daemon, parallel execution, VFS watching, local task-output caching, and configuration cache (configuration-cache problems warn rather than fail the build).
+- [x] Make `gradlew` and `gradlew.bat` select an installed Java 21 automatically and, if needed, bootstrap an Eclipse Temurin 21 JDK into Gradle's user cache with SHA-256 verification.
+- [x] Keep the same Gradle daemon available across CI build/test invocations by removing `--no-daemon`.

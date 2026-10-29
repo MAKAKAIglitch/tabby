@@ -35,6 +35,18 @@ set APP_HOME=%DIRNAME%
 @rem Resolve any "." and ".." in APP_HOME to make it shorter.
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
+@rem Tabby requires Java 21. Select an installed JDK 21 or bootstrap a checksum-verified Temurin 21.
+if "%TABBY_AUTO_JAVA%"=="0" goto skipTabbyJavaBootstrap
+set "TABBY_JAVA_HOME_FILE=%TEMP%\tabby-java-home-%RANDOM%-%RANDOM%.txt"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%APP_HOME%\gradle\auto-java.ps1" > "%TABBY_JAVA_HOME_FILE%"
+set "TABBY_BOOTSTRAP_EXIT=%ERRORLEVEL%"
+if exist "%TABBY_JAVA_HOME_FILE%" set /p "TABBY_JAVA_HOME="<"%TABBY_JAVA_HOME_FILE%"
+if exist "%TABBY_JAVA_HOME_FILE%" del "%TABBY_JAVA_HOME_FILE%" >NUL 2>&1
+if not "%TABBY_BOOTSTRAP_EXIT%"=="0" goto tabbyJavaBootstrapFailed
+if not defined TABBY_JAVA_HOME goto tabbyJavaBootstrapFailed
+set "JAVA_HOME=%TABBY_JAVA_HOME%"
+:skipTabbyJavaBootstrap
+
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS=-Dfile.encoding=UTF-8 "-Xmx64m" "-Xms64m"
 
@@ -90,5 +102,9 @@ exit /b %EXIT_CODE%
 
 :mainEnd
 if "%OS%"=="Windows_NT" endlocal
+
+:tabbyJavaBootstrapFailed
+echo ERROR: Tabby could not locate or bootstrap a valid Java 21 JDK. 1>&2
+goto fail
 
 :omega
