@@ -103,7 +103,11 @@ public final class TabBar {
             int textY = BAR_TOP + (BAR_HEIGHT - client.font.lineHeight) / 2;
             int pinnedOffset = slot.pinned() ? 11 : 0;
             int pingWidth = slot.pingLabel().isEmpty() ? 0 : client.font.width(slot.pingLabel()) + 5;
-            int titleMaxWidth = Math.max(10, slot.width() - CLOSE_WIDTH - 12 - pinnedOffset - pingWidth);
+            int memoryWidth = slot.memoryLabel().isEmpty() ? 0 : client.font.width(slot.memoryLabel()) + 5;
+            int titleMaxWidth = Math.max(
+                10,
+                slot.width() - CLOSE_WIDTH - 12 - pinnedOffset - pingWidth - memoryWidth - 4
+            );
             String title = truncate(client, slot.title(), titleMaxWidth);
 
             if (slot.pinned()) {
@@ -127,6 +131,16 @@ public final class TabBar {
                     false
                 );
             }
+            if (!slot.memoryLabel().isEmpty()) {
+                graphics.drawString(
+                    client.font,
+                    slot.memoryLabel(),
+                    right - CLOSE_WIDTH - pingWidth - client.font.width(slot.memoryLabel()) - 4,
+                    textY,
+                    ACTIVE_ACCENT,
+                    false
+                );
+            }
             graphics.drawString(
                 client.font,
                 "×",
@@ -147,6 +161,24 @@ public final class TabBar {
             TEXT_COLOR,
             false
         );
+    }
+
+    public static void renderHudMemory(Minecraft client, GuiGraphics graphics) {
+        TabContext active = TabManager.activeContext();
+        if (client == null || active == null || client.level == null) {
+            return;
+        }
+
+        TabMemoryUsage.Sample sample = TabMemoryUsage.sample(active);
+        String label = sample.hudLabel(active.title());
+        int padding = 5;
+        int rightPadding = 7;
+        int textWidth = client.font.width(label);
+        int textHeight = client.font.lineHeight;
+        int x = Math.max(4, client.getWindow().getGuiScaledWidth() - textWidth - rightPadding);
+        int y = 5;
+        graphics.fill(x - padding, y - 3, x + textWidth + padding, y + textHeight + 3, 0xE611161D);
+        graphics.drawString(client.font, label, x, y, 0xFFF1F5F9, false);
     }
 
     public static boolean handleClick(Minecraft client, double mouseX, double mouseY, int button) {
@@ -223,14 +255,17 @@ public final class TabBar {
                     ? context.serverData.ping + "ms"
                     : "—";
             }
+            boolean active = context.id() == TabManager.activeId();
+            String memoryLabel = active ? TabMemoryUsage.sample(context).compactLabel() : "";
             slots.add(new TabSlot(
                 context.id(),
                 context.title(),
                 x,
                 tabWidth,
-                context.id() == TabManager.activeId(),
+                active,
                 context.pinned,
-                pingLabel
+                pingLabel,
+                memoryLabel
             ));
             x += tabWidth + GAP;
         }
@@ -349,7 +384,7 @@ public final class TabBar {
         return candidate.isEmpty() ? ellipsis : candidate + ellipsis;
     }
 
-    private record TabSlot(int id, String title, int x, int width, boolean active, boolean pinned, String pingLabel) {
+    private record TabSlot(int id, String title, int x, int width, boolean active, boolean pinned, String pingLabel, String memoryLabel) {
     }
 
     private record Layout(int left, int right, int plusX, List<TabSlot> tabs, int mouseX, int mouseY) {

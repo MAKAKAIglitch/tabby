@@ -693,12 +693,23 @@ public final class NetworkSmokeTest {
         require(serverA.level != serverB.level, "Both tabs reference the same ClientLevel instance");
         require(serverA.player != serverB.player, "Both tabs reference the same LocalPlayer instance");
         require(serverA.networkConnection != serverB.networkConnection, "Both tabs reference the same network connection");
+        require(serverA.levelRenderer != serverB.levelRenderer, "Both tabs reference the same LevelRenderer");
+        TabMemoryUsage.refresh(TabManager.contexts());
+        require(TabMemoryUsage.sample(serverA).estimatedMiB() >= 20, "Server A RAM estimate is missing");
+        require(TabMemoryUsage.sample(serverB).estimatedMiB() >= 20, "Server B RAM estimate is missing");
 
         TabContext active = context(TabManager.activeId());
         require(active != null, "The active tab has no TabContext");
         require(client.level == active.level, "Minecraft.level does not match the active tab");
         require(client.player == active.player, "Minecraft.player does not match the active tab");
         require(client.getConnection() == active.clientConnection, "Minecraft.getConnection() does not match the active tab");
+        TabContext inactive = context(TabManager.activeId() == serverA.id() ? serverB.id() : serverA.id());
+        require(TabManager.shouldRenderRenderer(active.levelRenderer), "The active tab's renderer was blocked");
+        require(!TabManager.shouldRenderRenderer(inactive.levelRenderer), "An inactive tab's renderer was allowed to render");
+        require(
+            TabMemoryUsage.sample(active).hudLabel(active.title()).contains("RAM ~"),
+            "The active tab HUD memory label was not generated"
+        );
     }
 
     private static String connectionState(Minecraft client, TabContext context) {

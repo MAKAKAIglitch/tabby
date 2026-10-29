@@ -1,6 +1,8 @@
 package dev.tabby.tab;
 
 import dev.tabby.mixin.MinecraftAccessor;
+import dev.tabby.mixin.LevelRendererAccessor;
+import dev.tabby.mixin.ParticleEngineAccessor;
 import net.minecraft.client.KeyMapping;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.gui.screens.Screen;
@@ -47,6 +49,7 @@ public final class TabManager {
     private static int blockedSingleplayerWorldStartCount;
     private static final List<String> RESTORE_QUEUE = new ArrayList<>();
     private static int restoreTickDelay;
+    private static int memoryRefreshTicks;
 
     private TabManager() {
     }
@@ -87,6 +90,10 @@ public final class TabManager {
 
         tickRestoredServerAddresses(minecraft);
         tickBackgroundConnections();
+        if (++memoryRefreshTicks >= 20) {
+            memoryRefreshTicks = 0;
+            TabMemoryUsage.refresh(List.copyOf(TABS.values()));
+        }
     }
 
     private static void runPrototypeSmokeTestTick() {
@@ -132,6 +139,25 @@ public final class TabManager {
         context.screen = screen;
         LOGGER.debug("Stored background screen {} for tab {}", screen, contextId);
         return true;
+    }
+
+    /**
+     * Only the selected tab's LevelRenderer may enter the world-rendering pipeline.
+     */
+    public static boolean shouldRenderRenderer(LevelRenderer renderer) {
+        if (renderer == null || client == null || activeId < 0) {
+            return true;
+        }
+        if (isBackgroundContext()) {
+            return false;
+        }
+
+        TabContext active = TABS.get(activeId);
+        return active == null || active.levelRenderer == renderer;
+    }
+
+    public static TabContext activeContext() {
+        return TABS.get(activeId);
     }
 
     public static boolean isBackgroundContext() {
@@ -194,10 +220,15 @@ public final class TabManager {
                 active.id()
             );
             active.applyTo(client, true);
-            if (active.levelRenderer != null) {
+            if (active.levelRenderer != null
+                && ((LevelRendererAccessor) active.levelRenderer).tabby$getLevel() != active.level) {
                 active.levelRenderer.setLevel(active.level);
             }
-            if (active.particleEngine != null) {
+            if (active.levelRenderer != null) {
+                client.entityRenderDispatcher.setLevel(active.level);
+            }
+            if (active.particleEngine != null
+                && ((ParticleEngineAccessor) active.particleEngine).tabby$getLevel() != active.level) {
                 active.particleEngine.setLevel(active.level);
             }
             return true;
@@ -360,6 +391,7 @@ public final class TabManager {
 
     private static void disposeTab(TabContext context, boolean closeRenderer) {
         int id = context.id();
+        TabMemoryUsage.remove(id);
 
         synchronized (CONNECTION_OWNERS) {
             CONNECTION_OWNERS.entrySet().removeIf(entry -> entry.getValue() == id);
@@ -434,6 +466,7 @@ public final class TabManager {
         }
 
         TABS.clear();
+        TabMemoryUsage.clear();
         synchronized (CONNECTION_OWNERS) {
             CONNECTION_OWNERS.clear();
         }
@@ -552,9 +585,17 @@ public final class TabManager {
 
             target.applyTo(client, false);
             activeId = tabId;
-            // LevelRenderer.setLevel() invokes allChanged(), rebuilding world chunks for this tab.
-            target.levelRenderer.setLevel(target.level);
-            target.particleEngine.setLevel(target.level);
+            // Keep already-built chunk render state when returning to a known tab.
+            // setLevel() calls allChanged(), so only call it if the renderer has a different world.
+            if (((LevelRendererAccessor) target.levelRenderer).tabby$getLevel() != target.level) {
+                target.levelRenderer.setLevel(target.level);
+            } else {
+                // The entity dispatcher is shared by Minecraft, unlike LevelRenderer.
+                client.entityRenderDispatcher.setLevel(target.level);
+            }
+            if (((ParticleEngineAccessor) target.particleEngine).tabby$getLevel() != target.level) {
+                target.particleEngine.setLevel(target.level);
+            }
             if (pauseMenuRequested && target.level != null) {
                 // The source context may have a stale ConnectScreen/overlay saved from login.
                 // Switching from PauseScreen should consistently land on this world's pause menu.

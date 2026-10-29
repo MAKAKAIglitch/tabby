@@ -15,7 +15,11 @@
     "MouseHandlerMixin",
     "ConnectScreenMixin",
     "MutableSpriteSetAccessor",
-    "WorldOpenFlowsMixin"
+    "WorldOpenFlowsMixin",
+    "LevelRendererMixin",
+    "LevelRendererAccessor",
+    "ParticleEngineAccessor",
+    "GuiMixin"
   ],
   "injectors": {
     "defaultRequire": 1
