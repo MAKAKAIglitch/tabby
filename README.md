@@ -37,7 +37,7 @@ The project uses Fabric Loom and Mojang's official mappings. The Mod Menu API is
 
 ### Automatic Java selection
 
-The wrapper selects Java 21 automatically before starting Gradle. It checks `TABBY_JAVA_HOME`, `JAVA_HOME`, `JDK_HOME`, the active `PATH` Java, and common JDK installation locations. If no Java 21 installation is found, it downloads the latest Eclipse Temurin JDK 21 from Adoptium into the Gradle user cache and verifies the archive's SHA-256 checksum before using it. This also avoids accidentally launching this Gradle 8.12.1 build on an unsupported newer JVM.
+The wrapper selects Java 21 automatically before starting Gradle, and the Gradle Java toolchain pins compilation to Java 21 as a second guard. It checks `TABBY_JAVA_HOME`, `JAVA_HOME`, `JDK_HOME`, the active `PATH` Java, and common JDK installation locations. If no Java 21 installation is found, it downloads the latest Eclipse Temurin JDK 21 from Adoptium into the Gradle user cache and verifies the archive's SHA-256 checksum before using it. This also avoids accidentally launching this Gradle 8.12.1 build on an unsupported newer JVM.
 
 Set `TABBY_AUTO_JAVA=0` to disable Tabby's selection/bootstrap and use your normal Java environment. The build targets Java 21 in all cases.
 

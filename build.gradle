@@ -47,6 +47,11 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 java {
+    // The wrapper selects Java 21 before Gradle starts; also pin compilation to the
+    // same toolchain when a developer invokes a system Gradle installation directly.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
     withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
