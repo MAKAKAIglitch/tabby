@@ -623,8 +623,6 @@ public final class NetworkSmokeTest {
 
             TabManager.switchTo(singleplayerTabId);
             assertSingleplayerWorldRetained(client);
-            TabContext singleplayer = contextOrNull(singleplayerTabId);
-            require(singleplayer != null, "The single-player tab disappeared before switch-back");
             require(client.level == singleplayer.level, "Switching to single-player did not restore its current ClientLevel");
             require(client.player == singleplayer.player, "Switching to single-player did not restore its current LocalPlayer");
             require(
