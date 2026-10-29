@@ -1,6 +1,7 @@
 package dev.tabby.mixin;
 
 import dev.tabby.tab.TabManager;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleEngine;
@@ -33,6 +34,14 @@ public abstract class ParticleEngineMixin {
     @Final
     private Map<ResourceLocation, ?> spriteSets;
 
+    private boolean tabby$shouldSuppressParticleMutation() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return TabManager.isBackgroundContext()
+            || this.level == null
+            || !minecraft.isGameLoadFinished()
+            || minecraft.getOverlay() != null;
+    }
+
     @Inject(method = "setLevel", at = @At("HEAD"), cancellable = true)
     private void tabby$keepActiveParticleLevel(ClientLevel level, CallbackInfo ci) {
         if (TabManager.isBackgroundContext()) {
@@ -55,7 +64,7 @@ public abstract class ParticleEngineMixin {
         double za,
         CallbackInfoReturnable<Particle> cir
     ) {
-        if (TabManager.isBackgroundContext() || this.level == null) {
+        if (this.tabby$shouldSuppressParticleMutation()) {
             cir.setReturnValue(null);
             return;
         }
@@ -79,7 +88,7 @@ public abstract class ParticleEngineMixin {
         cancellable = true
     )
     private void tabby$dropBackgroundEmitter(Entity entity, ParticleOptions options, CallbackInfo ci) {
-        if (TabManager.isBackgroundContext() || this.level == null) {
+        if (this.tabby$shouldSuppressParticleMutation()) {
             ci.cancel();
         }
     }
@@ -95,14 +104,14 @@ public abstract class ParticleEngineMixin {
         int lifetime,
         CallbackInfo ci
     ) {
-        if (TabManager.isBackgroundContext() || this.level == null) {
+        if (this.tabby$shouldSuppressParticleMutation()) {
             ci.cancel();
         }
     }
 
     @Inject(method = "add(Lnet/minecraft/client/particle/Particle;)V", at = @At("HEAD"), cancellable = true)
     private void tabby$dropBackgroundAddedParticle(Particle particle, CallbackInfo ci) {
-        if (TabManager.isBackgroundContext() || this.level == null) {
+        if (this.tabby$shouldSuppressParticleMutation()) {
             ci.cancel();
         }
     }
