@@ -930,6 +930,61 @@ public final class TabManager {
      * Called before vanilla's ConnectScreen disconnects the current connection.
      * Returning true prevents a duplicate attempt from disrupting the existing tab.
      */
+    /**
+     * Vanilla disconnects the global client before every server connection attempt.
+     * That is correct only when the currently selected tab owns the world being
+     * disconnected. A freshly-created empty tab must not tear down an integrated
+     * server or client world retained by another tab.
+     */
+    public static void disconnectCurrentTabBeforeConnecting(Minecraft minecraft) {
+        if (client == null || minecraft != client) {
+            minecraft.disconnect();
+            return;
+        }
+
+        TabContext context = TABS.get(currentContextId());
+        if (context == null) {
+            minecraft.disconnect();
+            return;
+        }
+
+        Connection pending = context.pendingConnection;
+        Connection network = context.networkConnection;
+        boolean livePending = pending != null && (pending.isConnected() || pending.isConnecting());
+        boolean liveNetwork = network != null && (network.isConnected() || network.isConnecting());
+        boolean ownsWorld = context.level != null
+            || context.player != null
+            || context.gameMode != null
+            || context.localServer;
+        boolean ownsLiveListener = context.clientConnection != null
+            && context.clientConnection.getConnection().isConnected();
+
+        if (ownsWorld || ownsLiveListener || liveNetwork || livePending) {
+            LOGGER.debug(
+                "Running vanilla disconnect for tab {} before replacing its own connection (world={}, localServer={}, liveConnection={})",
+                context.id(),
+                context.level != null,
+                context.localServer,
+                ownsLiveListener || liveNetwork || livePending
+            );
+            minecraft.disconnect();
+            return;
+        }
+
+        // An empty tab has no client-side world state to disconnect. Do not run
+        // Minecraft.disconnect(), because its singleton cleanup may clear the
+        // retained world or integrated-server state of an inactive tab.
+        Connection nativePending = ((MinecraftAccessor) minecraft).tabby$getPendingConnection();
+        if (nativePending != null && nativePending == pending) {
+            nativePending.disconnect(Component.literal("Tab connection replaced"));
+            ((MinecraftAccessor) minecraft).tabby$setPendingConnection(null);
+        }
+        LOGGER.debug(
+            "Skipped vanilla global disconnect for empty tab {} before opening a new server connection",
+            context.id()
+        );
+    }
+
     public static boolean handleConnectionAttempt(ServerAddress address, ServerData serverData) {
         if (client == null || address == null || serverData == null) {
             return false;
