@@ -1,37 +1,40 @@
 package dev.tabby.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import dev.tabby.tab.TabManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundLoginPacket;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Keeps Tabby from switching global client state during the nested ticks performed
  * while a play login is creating its ClientLevel and LocalPlayer.
+ *
+ * A finally block is essential here: if vanilla throws while processing login, the
+ * per-thread login guard must still be removed so future client ticks can recover and
+ * the real packet failure is not hidden behind a permanently frozen Tabby guard.
  */
 @Mixin(ClientPacketListener.class)
 public abstract class ClientLoginMixin {
-    @Inject(
-        method = "handleLogin(Lnet/minecraft/network/protocol/game/ClientboundLoginPacket;)V",
-        at = @At("HEAD")
+    @WrapMethod(
+        method = "handleLogin(Lnet/minecraft/network/protocol/game/ClientboundLoginPacket;)V"
     )
-    private void tabby$beginClientLogin(ClientboundLoginPacket packet, CallbackInfo ci) {
-        if (Minecraft.getInstance().isSameThread()) {
+    private void tabby$wrapClientLogin(ClientboundLoginPacket packet, Operation<Void> original) {
+        Minecraft minecraft = Minecraft.getInstance();
+        boolean onClientThread = minecraft.isSameThread();
+
+        if (onClientThread) {
             TabManager.beginClientLogin((ClientPacketListener) (Object) this);
         }
-    }
 
-    @Inject(
-        method = "handleLogin(Lnet/minecraft/network/protocol/game/ClientboundLoginPacket;)V",
-        at = @At("RETURN")
-    )
-    private void tabby$endClientLogin(ClientboundLoginPacket packet, CallbackInfo ci) {
-        if (Minecraft.getInstance().isSameThread()) {
-            TabManager.endClientLogin((ClientPacketListener) (Object) this);
+        try {
+            original.call(packet);
+        } finally {
+            if (onClientThread) {
+                TabManager.endClientLogin((ClientPacketListener) (Object) this);
+            }
         }
     }
 }
