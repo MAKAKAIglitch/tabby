@@ -13,7 +13,8 @@
     "ParticleEngineMixin",
     "KeyboardHandlerMixin",
     "MouseHandlerMixin",
-    "ConnectScreenMixin"
+    "ConnectScreenMixin",
+    "MutableSpriteSetAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
