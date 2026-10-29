@@ -43,7 +43,7 @@ Set `TABBY_AUTO_JAVA=0` to disable Tabby's selection/bootstrap and use your norm
 
 ### Build speed
 
-Gradle reuses its daemon, configuration cache, and local build cache for repeat builds. Independent tasks are scheduled in parallel; parallel configuration-cache storage is enabled, and up to four task-graph cache entries are retained so switching between source generation, build, and client launch can reuse configuration. The CI source-generation and build tasks are also scheduled in a single Gradle invocation. Keep using the wrapper commands below so the selected Java and project-specific Gradle settings are applied.
+Gradle reuses its daemon, configuration cache, and local build cache for repeat builds. Independent tasks are scheduled in parallel, and up to four configuration-cache entries are retained so source generation, build, and client launch can reuse configuration. The Gradle daemon is capped at 2 GB with a 768 MB metaspace limit because `runClient` starts a separate Minecraft JVM; this lowers the risk of the operating system killing Gradle on memory-constrained PCs. Parallel configuration-cache serialization is left disabled to avoid a needless memory spike. CI runs source generation and the build in one Gradle invocation. Keep using the wrapper commands below so automatic Java selection and the project-specific Gradle settings are applied.
 
 On Linux/macOS:
 
