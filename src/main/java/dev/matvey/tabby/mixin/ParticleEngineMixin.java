@@ -23,7 +23,7 @@ public abstract class ParticleEngineMixin {
 
     @Inject(method = "setLevel", at = @At("HEAD"), cancellable = true)
     private void tabby$keepActiveParticleLevel(ClientLevel level, CallbackInfo ci) {
-        if (TabManager.isBackgroundContext() || this.level == null) {
+        if (TabManager.isBackgroundContext()) {
             ci.cancel();
         }
     }
@@ -54,7 +54,7 @@ public abstract class ParticleEngineMixin {
         cancellable = true
     )
     private void tabby$dropBackgroundEmitter(Entity entity, ParticleOptions options, CallbackInfo ci) {
-        if (TabManager.isBackgroundContext()) {
+        if (TabManager.isBackgroundContext() || this.level == null) {
             ci.cancel();
         }
     }
@@ -70,14 +70,14 @@ public abstract class ParticleEngineMixin {
         int lifetime,
         CallbackInfo ci
     ) {
-        if (TabManager.isBackgroundContext()) {
+        if (TabManager.isBackgroundContext() || this.level == null) {
             ci.cancel();
         }
     }
 
     @Inject(method = "add(Lnet/minecraft/client/particle/Particle;)V", at = @At("HEAD"), cancellable = true)
     private void tabby$dropBackgroundAddedParticle(Particle particle, CallbackInfo ci) {
-        if (TabManager.isBackgroundContext()) {
+        if (TabManager.isBackgroundContext() || this.level == null) {
             ci.cancel();
         }
     }
