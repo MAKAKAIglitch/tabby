@@ -8,9 +8,29 @@ function Test-Java21Home([string] $HomePath) {
     $javaExe = Join-Path $candidate 'bin\java.exe'
     if (-not (Test-Path -LiteralPath $javaExe -PathType Leaf)) { return $false }
 
-    $versionText = (& $javaExe -version 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0) { return $false }
-    return ($versionText -match '(?m)version\s+"21(?:\.|")|openjdk\s+21(?:\.|\s)')
+    # java -version writes to stderr; use ProcessStartInfo so PowerShell 7's
+    # native-command error preference cannot turn valid version output into an exception.
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $javaExe
+    $startInfo.Arguments = '-version'
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) { return $false }
+        $stdout = $process.StandardOutput.ReadToEnd()
+        $stderr = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        if ($process.ExitCode -ne 0) { return $false }
+        $versionText = $stdout + "`n" + $stderr
+        return ($versionText -match '(?m)version\s+"21(?:\.|")|openjdk\s+21(?:\.|\s)')
+    }
+    finally {
+        $process.Dispose()
+    }
 }
 
 $candidates = New-Object 'System.Collections.Generic.List[string]'
