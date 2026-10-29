@@ -427,6 +427,18 @@ public final class NetworkSmokeTest {
             require(blockedCount == blockedWorldStartCountBefore + 1, "The second-world guard ran an unexpected number of times");
             assertSingleplayerWorldRetained(client);
 
+            TabContext guardTab = contextOrNull(secondWorldGuardTabId);
+            require(guardTab != null, "The second-world guard tab disappeared during world loading");
+            require(TabManager.activeId() == secondWorldGuardTabId, "World-loading guard unexpectedly changed the active tab");
+            require(guardTab.level == null && client.level == null,
+                "Opening a rejected second world leaked the background single-player level into the active tab");
+            require(guardTab.player == null && client.player == null,
+                "Opening a rejected second world leaked the background single-player player into the active tab");
+            require(client.levelRenderer == guardTab.levelRenderer,
+                "Opening a rejected second world replaced the active tab's world renderer");
+            require(client.getConnection() == null,
+                "Opening a rejected second world leaked a background connection into the active tab");
+
             TabContext network = contextOrNull(networkAfterSingleplayerTabId);
             require(isJoined(network), "Attempting a second single-player world disconnected the network tab");
             Connection networkConnection = network.networkConnection;

@@ -152,10 +152,57 @@ public final class TabManager {
             return;
         }
 
+        // Vanilla screens/world-loading code can temporarily expose another tab's client
+        // state without entering runIn(). Never save that foreign state over the selected tab.
+        if (restoreActiveContextIfForeignState()) {
+            return;
+        }
+
         TabContext context = TABS.get(currentContextId());
         if (context != null) {
             context.captureFrom(client);
         }
+    }
+
+    private static boolean restoreActiveContextIfForeignState() {
+        if (EXECUTION_CONTEXT.get() != null) {
+            return false;
+        }
+
+        TabContext active = TABS.get(activeId);
+        if (active == null) {
+            return false;
+        }
+
+        for (TabContext other : TABS.values()) {
+            if (other.id() == active.id()) {
+                continue;
+            }
+
+            boolean foreignLevel = other.level != null && client.level == other.level;
+            boolean foreignPlayer = other.player != null && client.player == other.player;
+            boolean foreignGameMode = other.gameMode != null && client.gameMode == other.gameMode;
+            boolean foreignRenderer = other.levelRenderer != null && client.levelRenderer == other.levelRenderer;
+            if (!foreignLevel && !foreignPlayer && !foreignGameMode && !foreignRenderer) {
+                continue;
+            }
+
+            LOGGER.debug(
+                "Detected foreign global client state from tab {}; restoring active tab {} before tick",
+                other.id(),
+                active.id()
+            );
+            active.applyTo(client, true);
+            if (active.levelRenderer != null) {
+                active.levelRenderer.setLevel(active.level);
+            }
+            if (active.particleEngine != null) {
+                active.particleEngine.setLevel(active.level);
+            }
+            return true;
+        }
+
+        return false;
     }
 
     public static void createTab() {
