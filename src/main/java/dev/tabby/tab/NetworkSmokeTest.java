@@ -312,11 +312,15 @@ public final class NetworkSmokeTest {
         pressShortcut(client, GLFW.GLFW_KEY_TAB);
         require(TabManager.activeId() == 1, "Ctrl+Tab did not select the next tab");
 
+        int activeBeforeClick = TabManager.activeId();
         require(
             TabBar.handleClick(client, 10.0, TabBar.stripCenterY(), GLFW.GLFW_MOUSE_BUTTON_LEFT),
             "Clicking the first tab was not handled"
         );
-        require(TabManager.activeId() == 0, "Clicking the first tab did not activate it");
+        require(TabManager.activeId() == activeBeforeClick,
+            "A tab press switched contexts before mouse release");
+        TabBar.handleMouseRelease(client);
+        require(TabManager.activeId() == 0, "Releasing a click on the first tab did not activate it");
 
         int plusX = TabBar.plusButtonCenterX(client);
         require(
@@ -367,8 +371,41 @@ public final class NetworkSmokeTest {
         require(TabbyConfig.showInMenus(), "The tab bar should be enabled in menus by default");
         require(TabbyConfig.inGameBarMode().equals("hover_or_alt"), "The default in-game tab bar mode was not loaded");
 
-        TabManager.moveTab(1, 0);
-        require(TabManager.contexts().get(0).id() == 1, "Dragging/reordering a tab did not change its position");
+        int originalActiveId = TabManager.activeId();
+        TabManager.switchTo(0);
+        client.setScreen(new PauseScreen(true));
+        TabManager.captureCurrentState();
+
+        int draggedTabId = 1;
+        int targetTabId = 0;
+        int sourceX = TabBar.tabCenterX(client, draggedTabId);
+        int targetX = TabBar.tabCenterX(client, targetTabId);
+        int dragY = TabBar.stripCenterY();
+        require(sourceX >= 0 && targetX >= 0, "The tab strip did not expose draggable tab hitboxes");
+
+        require(
+            TabBar.handleClick(client, sourceX, dragY, GLFW.GLFW_MOUSE_BUTTON_LEFT),
+            "Pressing a tab to begin dragging was not handled"
+        );
+        require(TabManager.activeId() == 0,
+            "Pressing a background tab activated it before the drag gesture finished");
+
+        double rawTargetX = (targetX - 10.0) * client.getWindow().getScreenWidth()
+            / client.getWindow().getGuiScaledWidth();
+        double rawTargetY = dragY * client.getWindow().getScreenHeight()
+            / client.getWindow().getGuiScaledHeight();
+        TabBar.handleMouseMove(client, rawTargetX, rawTargetY, true);
+        require(TabBar.isDragging(), "Moving a held tab did not enter drag mode");
+        TabBar.handleMouseRelease(client);
+
+        require(TabManager.contexts().get(0).id() == draggedTabId,
+            "Dragging a tab leftward did not move it before the target tab");
+        require(TabManager.activeId() == 0,
+            "Reordering a tab changed the active tab instead of only changing the order");
+
+        client.setScreen(null);
+        TabManager.captureCurrentState();
+
         TabManager.moveTab(1, TabManager.contexts().size());
         require(TabManager.contexts().get(0).id() == 0 && TabManager.contexts().get(1).id() == 1,
             "Moving the tab back did not restore the original order");
@@ -392,7 +429,10 @@ public final class NetworkSmokeTest {
             "Stored server addresses were not deduplicated or validated");
         TabbyConfig.saveRestoredServerAddresses(previousAddresses);
 
-        LOGGER.info("Network smoke test: configurable shortcuts, bar mode, pin/reorder, and address-only config persistence passed");
+        if (TabManager.activeId() != originalActiveId) {
+            TabManager.switchTo(originalActiveId);
+        }
+        LOGGER.info("Network smoke test: real mouse drag, click activation, pinning, and address-only config persistence passed");
     }
 
     private static void verifyStabilityControls(Minecraft client) {

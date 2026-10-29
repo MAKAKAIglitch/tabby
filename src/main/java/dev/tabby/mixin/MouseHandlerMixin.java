@@ -28,7 +28,7 @@ public abstract class MouseHandlerMixin {
         }
 
         if (action == GLFW.GLFW_RELEASE && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            TabBar.handleMouseRelease();
+            TabBar.handleMouseRelease(client);
             return;
         }
         if (action != GLFW.GLFW_PRESS || client.screen != null || client.getOverlay() != null

@@ -35,6 +35,9 @@ public final class TabBar {
 
     private static boolean initialized;
     private static int draggingTabId = -1;
+    private static int pendingClickTabId = -1;
+    private static int lastDropTargetId = -1;
+    private static boolean lastDropAfterTarget;
     private static double dragStartX;
     private static double dragStartY;
     private static boolean dragStarted;
@@ -90,6 +93,9 @@ public final class TabBar {
             graphics.fill(slot.x(), BAR_TOP, right, bottom, background);
             if (slot.active()) {
                 graphics.fill(slot.x(), BAR_TOP, right, BAR_TOP + 2, ACTIVE_ACCENT);
+            }
+            if (dragStarted && slot.id() == draggingTabId) {
+                graphics.fill(slot.x(), bottom - 2, right, bottom, ACTIVE_ACCENT);
             }
 
             boolean closeHover = layout.closeX(slot) <= layout.mouseX()
@@ -190,7 +196,7 @@ public final class TabBar {
 
         if (draggingTabId >= 0
             && GLFW.glfwGetMouseButton(client.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
-            resetDrag();
+            handleMouseRelease(client);
         }
 
         List<TabContext> contexts = TabManager.contexts();
@@ -210,6 +216,7 @@ public final class TabBar {
             }
 
             if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+                resetDrag();
                 TabManager.togglePinned(slot.id());
                 return true;
             }
@@ -217,16 +224,19 @@ public final class TabBar {
                 resetDrag();
                 TabManager.closeTab(slot.id());
             } else {
-                TabManager.switchTo(slot.id());
                 draggingTabId = slot.id();
+                pendingClickTabId = slot.id();
                 dragStartX = mouseX;
                 dragStartY = mouseY;
                 dragStarted = false;
+                lastDropTargetId = -1;
+                lastDropAfterTarget = false;
             }
             return true;
         }
 
         if (mouseX >= layout.plusX() && mouseX < layout.plusX() + PLUS_WIDTH) {
+            resetDrag();
             TabManager.createTab();
             return true;
         }
@@ -281,6 +291,24 @@ public final class TabBar {
         if (client == null) {
             return;
         }
+        long window = client.getWindow().getWindow();
+        boolean leftButtonDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+        handleMouseMove(client, rawMouseX, rawMouseY, leftButtonDown);
+    }
+
+    /**
+     * Processes a pointer move. The explicit button state also lets the smoke test
+     * exercise the exact drag path without relying on synthetic native GLFW input.
+     */
+    public static void handleMouseMove(
+        Minecraft client,
+        double rawMouseX,
+        double rawMouseY,
+        boolean leftButtonDown
+    ) {
+        if (client == null) {
+            return;
+        }
         if (!isVisibleOnScreen(client.screen)) {
             resetDrag();
             return;
@@ -288,10 +316,8 @@ public final class TabBar {
         if (draggingTabId < 0) {
             return;
         }
-
-        long window = client.getWindow().getWindow();
-        if (GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
-            resetDrag();
+        if (!leftButtonDown) {
+            handleMouseRelease(client);
             return;
         }
 
@@ -317,6 +343,7 @@ public final class TabBar {
             }
         }
         if (target == null || target.id() == draggingTabId) {
+            lastDropTargetId = -1;
             return;
         }
 
@@ -328,15 +355,29 @@ public final class TabBar {
             }
         }
         if (targetIndex >= 0) {
-            if (mouseX >= target.x() + target.width() / 2.0) {
-                targetIndex++;
+            boolean afterTarget = mouseX >= target.x() + target.width() / 2.0;
+            if (target.id() != lastDropTargetId || afterTarget != lastDropAfterTarget) {
+                if (afterTarget) {
+                    targetIndex++;
+                }
+                TabManager.moveTab(draggingTabId, targetIndex);
+                lastDropTargetId = target.id();
+                lastDropAfterTarget = afterTarget;
             }
-            TabManager.moveTab(draggingTabId, targetIndex);
+        }
+    }
+
+    public static void handleMouseRelease(Minecraft client) {
+        int clickedTabId = pendingClickTabId;
+        boolean wasDrag = dragStarted;
+        resetDrag();
+        if (client != null && clickedTabId >= 0 && !wasDrag) {
+            TabManager.switchTo(clickedTabId);
         }
     }
 
     public static void handleMouseRelease() {
-        resetDrag();
+        handleMouseRelease(Minecraft.getInstance());
     }
 
     public static boolean isDragging() {
@@ -345,6 +386,9 @@ public final class TabBar {
 
     private static void resetDrag() {
         draggingTabId = -1;
+        pendingClickTabId = -1;
+        lastDropTargetId = -1;
+        lastDropAfterTarget = false;
         dragStartX = 0;
         dragStartY = 0;
         dragStarted = false;
@@ -352,6 +396,15 @@ public final class TabBar {
 
     static int stripCenterY() {
         return BAR_TOP + BAR_HEIGHT / 2;
+    }
+
+    static int tabCenterX(Minecraft client, int tabId) {
+        for (TabSlot slot : layout(client, TabManager.contexts()).tabs()) {
+            if (slot.id() == tabId) {
+                return slot.x() + slot.width() / 2;
+            }
+        }
+        return -1;
     }
 
     static int plusButtonCenterX(Minecraft client) {
