@@ -41,6 +41,8 @@ public final class TabContext {
     public String playerName;
     public boolean connecting;
     public boolean localServer;
+    public boolean worldTransitioning;
+    public int worldTransitionTicks;
     public boolean pinned;
 
     public LevelRenderer levelRenderer;
@@ -76,6 +78,8 @@ public final class TabContext {
         context.playerName = null;
         context.connecting = false;
         context.localServer = false;
+        context.worldTransitioning = false;
+        context.worldTransitionTicks = 0;
         context.levelRenderer = new LevelRenderer(
             client,
             client.entityRenderDispatcher,

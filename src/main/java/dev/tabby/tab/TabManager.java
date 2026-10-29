@@ -9,6 +9,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.multiplayer.ServerData;
@@ -198,8 +199,25 @@ public final class TabManager {
             return;
         }
 
-        // Vanilla screens/world-loading code can temporarily expose another tab's client
-        // state without entering runIn(). Never save that foreign state over the selected tab.
+        // Vanilla intentionally clears client.level/player while it disconnects the
+        // previous world and loads a replacement. Do not capture or "repair" that
+        // temporary state: the old listener may already have cleared its level.
+        if (EXECUTION_CONTEXT.get() == null) {
+            TabContext active = TABS.get(activeId);
+            if (active != null && active.worldTransitioning) {
+                if (++active.worldTransitionTicks <= 1200) {
+                    return;
+                }
+
+                active.worldTransitioning = false;
+                active.worldTransitionTicks = 0;
+                LOGGER.warn(
+                    "World transition timed out for tab {}; resuming client-state recovery",
+                    active.id()
+                );
+            }
+        }
+
         if (restoreActiveContextIfForeignState()) {
             return;
         }
@@ -210,13 +228,44 @@ public final class TabManager {
         }
     }
 
+    public static void beginWorldTransition(String worldId) {
+        if (client == null) {
+            return;
+        }
+
+        TabContext context = TABS.get(currentContextId());
+        if (context == null) {
+            return;
+        }
+
+        context.worldTransitioning = true;
+        context.worldTransitionTicks = 0;
+        LOGGER.info("Tabby: starting world transition in tab {} to '{}'", context.id(), worldId);
+    }
+
+    public static void onClientLevelInstalled() {
+        if (client == null || client.level == null) {
+            return;
+        }
+
+        TabContext context = TABS.get(currentContextId());
+        if (context == null || !context.worldTransitioning) {
+            return;
+        }
+
+        context.worldTransitioning = false;
+        context.worldTransitionTicks = 0;
+        context.captureFrom(client);
+        LOGGER.info("Tabby: world transition completed in tab {}", context.id());
+    }
+
     private static boolean restoreActiveContextIfForeignState() {
         if (EXECUTION_CONTEXT.get() != null) {
             return false;
         }
 
         TabContext active = TABS.get(activeId);
-        if (active == null) {
+        if (active == null || active.worldTransitioning) {
             return false;
         }
 

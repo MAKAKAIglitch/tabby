@@ -2,6 +2,8 @@ package dev.tabby.mixin;
 
 import dev.tabby.tab.TabManager;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.server.WorldStem;
@@ -25,6 +27,16 @@ public abstract class MinecraftMixin {
     @Inject(method = "tick", at = @At("HEAD"), order = 0)
     private void tabby$captureCurrentContext(CallbackInfo ci) {
         TabManager.captureCurrentState();
+    }
+
+    @Inject(
+        method = "setLevel(Lnet/minecraft/client/multiplayer/ClientLevel;Lnet/minecraft/client/gui/screens/ReceivingLevelScreen$Reason;)V",
+        at = @At("RETURN")
+    )
+    private void tabby$completeWorldTransition(ClientLevel level, ReceivingLevelScreen.Reason reason, CallbackInfo ci) {
+        if (level != null) {
+            TabManager.onClientLevelInstalled();
+        }
     }
 
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)

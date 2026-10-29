@@ -22,6 +22,9 @@ public abstract class WorldOpenFlowsMixin {
         if (TabManager.shouldBlockSingleplayerWorldStart()) {
             TabManager.showSingleplayerWorldBlockedNotice();
             ci.cancel();
+            return;
         }
+
+        TabManager.beginWorldTransition(levelId);
     }
 }
