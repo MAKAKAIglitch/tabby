@@ -162,7 +162,7 @@ public final class TabBar {
         if (client.screen != null && !TabbyConfig.showInMenus()) {
             return false;
         }
-        if (client.screen == null && !shouldShowInGameBar(client)) {
+        if (client.screen == null && !shouldShowInGameBarAt(client, mouseY)) {
             return false;
         }
 
@@ -316,6 +316,13 @@ public final class TabBar {
     }
 
     private static boolean shouldShowInGameBar(Minecraft client) {
+        double mouseY = client.mouseHandler.ypos()
+            * (double) client.getWindow().getGuiScaledHeight()
+            / (double) client.getWindow().getScreenHeight();
+        return shouldShowInGameBarAt(client, mouseY);
+    }
+
+    private static boolean shouldShowInGameBarAt(Minecraft client, double pointerY) {
         String mode = TabbyConfig.inGameBarMode();
         return switch (mode) {
             case "always" -> true;
@@ -326,10 +333,7 @@ public final class TabBar {
                 long window = client.getWindow().getWindow();
                 boolean altDown = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
                     || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-                double mouseY = client.mouseHandler.ypos()
-                    * (double) client.getWindow().getGuiScaledHeight()
-                    / (double) client.getWindow().getScreenHeight();
-                yield altDown || mouseY <= BAR_TOP + BAR_HEIGHT + 8;
+                yield altDown || pointerY <= BAR_TOP + BAR_HEIGHT + 8;
             }
             default -> false;
         };

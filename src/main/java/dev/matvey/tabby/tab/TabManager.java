@@ -235,7 +235,7 @@ public final class TabManager {
         }
 
         context.pinned = !context.pinned;
-        moveTab(tabId, context.pinned ? 0 : TABS.size() - 1);
+        moveTab(tabId, context.pinned ? 0 : TABS.size());
         LOGGER.debug("Tab {} pin state changed to {}", tabId, context.pinned);
     }
 
