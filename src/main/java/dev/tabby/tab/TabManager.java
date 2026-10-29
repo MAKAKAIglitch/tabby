@@ -81,6 +81,18 @@ public final class TabManager {
     }
 
     private static void onClientTick(Minecraft minecraft) {
+        // Vanilla may run a nested client tick while a packet handler calls setLevel().
+        // That packet handler runs under runIn(tabId), so activeId still identifies the
+        // visible tab, not the context temporarily installed for the packet. Running the
+        // background-connection loop here would tick the visible tab against the temporary
+        // context and can clear the incoming world's gameMode/player state. Only perform
+        // Tabby maintenance from the outer, ordinary client tick.
+        Integer executionId = EXECUTION_CONTEXT.get();
+        if (executionId != null) {
+            LOGGER.debug("Skipping nested client-tick maintenance while processing tab {} packet", executionId);
+            return;
+        }
+
         if (NetworkSmokeTest.isEnabled()) {
             NetworkSmokeTest.tick(minecraft);
         } else if (CompatibilitySmokeTest.isEnabled()) {
