@@ -5,7 +5,9 @@
   "name": "Tabby",
   "description": "Browser-style client tabs for Minecraft 1.21.4.",
   "contact": {
-    "sources": "https://github.com/MAKAKAIglitch/tabby"
+    "homepage": "https://github.com/MAKAKAIglitch",
+    "sources": "https://github.com/MAKAKAIglitch/tabby",
+    "issues": "https://github.com/MAKAKAIglitch/tabby/issues"
   },
   "license": "MIT",
   "environment": "client",
@@ -29,5 +31,8 @@
   },
   "suggests": {
     "modmenu": ">=13.0.2"
-  }
+  },
+  "authors": [
+    "MAKAKAIglitch"
+  ]
 }
