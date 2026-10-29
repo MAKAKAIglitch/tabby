@@ -26,7 +26,7 @@ Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style
 - [x] Stage 3 — duplicate attempts are intercepted before vanilla disconnects the active tab; disconnect callbacks release tab-owned references; CI covers duplicate blocking, closing a live tab, and closing the final tab.
 - [x] Stage 4 — CI verifies key release on switch, the JSON-configured background-tab limit, 2400-tick dual-connection stability, real integrated single-player retention while connecting to a network tab, blocking a second single-player world, connection cleanup, and clean client shutdown. Sound stop, cursor reset, renderer refresh, and integrated-server preservation hooks are implemented.
 - [x] Stage 5 — configuration and polish verified by CI: JSON settings, configurable shortcuts/bar mode, ping labels, drag reordering, pin/unpin, and optional deduplicated address-only restoration all passed their automated checks.
-- [ ] Stage 6 — CI now runs separate isolated launch/world-render/context-switch checks for Sodium 0.6.13, Iris 1.8.8 (with its Sodium dependency), Lithium 0.15.3, and Mod Menu 13.0.2 on Minecraft 1.21.4. Acceptance and README results remain pending the new CI run.
+- [x] Stage 6 — CI passed on 2026-10-29 (run [40816763509](https://github.com/MAKAKAIglitch/tabby/actions/runs/40816763509)): baseline Fabric API test plus separate Sodium 0.6.13, Iris 1.8.8 + Sodium, Lithium 0.15.3, and Mod Menu 13.0.2 client/world/context-switch smoke tests all passed. The tested CI renderer is software-rendered (llvmpipe); hardware-GPU and enabled-shaderpack testing remains open. Full content-level chat/inventory/entity isolation also remains a follow-up.
 
 ## Stage 0 — scaffold
 

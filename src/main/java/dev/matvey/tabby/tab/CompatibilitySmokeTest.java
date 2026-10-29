@@ -31,6 +31,7 @@ public final class CompatibilitySmokeTest {
     private static Phase phase = Phase.CONNECT;
     private static int phaseTicks;
     private static int switchTicks;
+    private static boolean modVerified;
 
     private CompatibilitySmokeTest() {
     }
@@ -52,7 +53,10 @@ public final class CompatibilitySmokeTest {
     }
 
     private static void beginConnection(Minecraft client) {
-        verifyExpectedModLoaded();
+        if (!modVerified) {
+            verifyExpectedModLoaded();
+            modVerified = true;
+        }
         if (++phaseTicks < 20) {
             return;
         }
