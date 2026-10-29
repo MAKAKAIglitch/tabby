@@ -52,16 +52,19 @@ On Linux/macOS:
 ./gradlew runClient
 ```
 
-On Windows:
+### Build locally on Windows
 
-```powershell
-.\gradlew.bat build
-.\gradlew.bat runClient
+**Recommended: double-click `build-tabby.bat` in the project folder.** It automatically selects an installed Java 21 JDK (or downloads Eclipse Temurin 21 after verifying its SHA-256 checksum), runs Gradle, and checks that a non-empty remapped mod JAR really exists. The final file is copied to:
+
+```text
+dist\\Tabby-1.21.4.jar
 ```
 
-The first build downloads the Gradle distribution, required dependencies, and (only if needed) Java 21. Later builds reuse the local caches. If a CI client launch fails, the workflow uploads crash reports, `latest.log`, JVM fatal-error logs, and the client console log as a downloadable diagnostic artifact. Build output is written to `build/libs/`; generated game files are kept under the ignored `run/` directory.
+The launcher opens the `dist` folder only after verifying the JAR. The console stays open after both success and failure, and the full build output is saved to `build-tabby.log` for troubleshooting. CI skips the interactive pause. To suppress the pause when launching from your own terminal, set `TABBY_NO_PAUSE=1`.
 
-On Windows, a successful `build` automatically opens File Explorer to `build\\libs`, where the compiled mod JAR is stored. Set `TABBY_OPEN_MOD_FOLDER=0` to turn this off. This is disabled automatically in CI and on non-Windows systems.
+To build from a terminal instead, use `./gradlew build exportModJar` on Linux/macOS or ` .\\gradlew.bat build exportModJar` on Windows. These commands also leave the installable JAR in `dist/`. Use `gradlew.bat runClient` when you want to launch a development client rather than just create the mod.
+
+The first build downloads the Gradle distribution, required dependencies, and (only if needed) Java 21. Later builds reuse the Gradle daemon, configuration cache and task-output cache. The normal Gradle outputs remain under `build/libs/`; the stable installable copy is `dist/Tabby-1.21.4.jar`. Generated game files are kept under the ignored `run/` directory.
 
 Use **Ctrl+T** to create a tab, **Ctrl+W** to close the active tab, **Ctrl+Tab** to cycle tabs, and **Ctrl+1** through **Ctrl+9** to select a tab by position. The strip is visible only on the **main title screen** and the **pause menu**; it never renders over the in-game HUD or other screens. With Mod Menu installed, open **Mods → Tabby → Settings** to change the background-tab limit, server-address restoration, and Ctrl shortcut keys.
 

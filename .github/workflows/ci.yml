@@ -29,16 +29,20 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Verify Windows wrapper selects Java 21
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build with the same launcher used by Windows users
         shell: pwsh
         run: |
-          $output = .\gradlew.bat --version 2>&1
-          $output | ForEach-Object { Write-Host $_ }
-          if ($LASTEXITCODE -ne 0) { throw "Gradle wrapper failed with exit code $LASTEXITCODE" }
-          $text = $output -join "`n"
-          if ($text -notmatch '(?m)JVM:[ ]+21([.]|[ ])') {
-            throw "Gradle did not start on Java 21."
-          }
+          $env:TABBY_NO_PAUSE = "1"
+          & .\build-tabby.bat
+          $buildExitCode = $LASTEXITCODE
+          if ($buildExitCode -ne 0) { throw "build-tabby.bat failed with exit code $buildExitCode" }
+
+          $jar = Get-Item -LiteralPath ".\dist\Tabby-1.21.4.jar" -ErrorAction Stop
+          if ($jar.Length -le 0) { throw "The exported JAR is empty." }
+          Write-Host "Verified local build output: $($jar.FullName) ($($jar.Length) bytes)"
 
   build:
     runs-on: ubuntu-latest

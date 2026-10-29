@@ -83,3 +83,10 @@ Test on Fabric API alone, then separately with Sodium, Iris, Lithium, and Mod Me
 - [x] Enable the Gradle daemon, parallel task execution, parallel configuration-cache storage, VFS watching, local task-output caching, and multiple cached task graphs (configuration-cache problems warn rather than fail the build).
 - [x] Make `gradlew` and `gradlew.bat` select an installed Java 21 automatically and, if needed, bootstrap an Eclipse Temurin 21 JDK into Gradle's user cache with SHA-256 verification.
 - [x] Keep the same Gradle daemon available across CI build/test invocations by removing `--no-daemon`.
+
+
+## Local Windows build launcher
+
+- [x] Add a double-clickable `build-tabby.bat` launcher that remains open after success/failure.
+- [x] Use the existing Java 21 selector/bootstrap, export the final remapped JAR to `dist/Tabby-1.21.4.jar`, verify the file is non-empty, and write the full console output to `build-tabby.log`.
+- [ ] Verify the Windows build launcher and exported JAR in GitHub Actions.

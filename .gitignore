@@ -11,3 +11,7 @@ run/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local build output and logs
+/dist/
+build-tabby.log
