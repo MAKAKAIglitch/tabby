@@ -88,7 +88,7 @@ public final class NetworkSmokeTest {
     }
 
     public static void tick(Minecraft client) {
-        if (!ENABLED) {
+        if (!ENABLED || !client.isGameLoadFinished()) {
             return;
         }
 
