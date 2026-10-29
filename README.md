@@ -61,6 +61,8 @@ On Windows:
 
 The first build downloads the Gradle distribution, required dependencies, and (only if needed) Java 21. Later builds reuse the local caches. Build output is written to `build/libs/`; generated game files are kept under the ignored `run/` directory.
 
+On Windows, a successful `build` automatically opens File Explorer to `build\\libs`, where the compiled mod JAR is stored. Set `TABBY_OPEN_MOD_FOLDER=0` to turn this off. This is disabled automatically in CI and on non-Windows systems.
+
 Use **Ctrl+T** to create a tab, **Ctrl+W** to close the active tab, **Ctrl+Tab** to cycle tabs, and **Ctrl+1** through **Ctrl+9** to select a tab by position. The tab strip includes a title, close control, and plus control.
 
 ## Development workflow

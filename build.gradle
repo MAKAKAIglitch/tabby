@@ -49,3 +49,34 @@ jar {
         rename { "LICENSE_${tabbyArchiveName}" }
     }
 }
+
+// Open the compiled mod directory after a successful local Windows build.
+// Set TABBY_OPEN_MOD_FOLDER=0 to disable it; CI and non-Windows builds never open a GUI.
+def tabbyBuildOutputPath = layout.buildDirectory.dir("libs").get().asFile.absolutePath
+def tabbyOsName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT)
+def tabbyCiValue = (System.getenv("CI") ?: "").trim()
+def tabbyAutoOpenSetting = (System.getenv("TABBY_OPEN_MOD_FOLDER") ?: "1").trim()
+def tabbyShouldOpenModFolder = tabbyOsName.contains("windows")
+    && !tabbyCiValue.equalsIgnoreCase("true")
+    && tabbyAutoOpenSetting != "0"
+
+tasks.named("build") {
+    doLast {
+        if (tabbyShouldOpenModFolder) {
+            File modOutputDir = new File(tabbyBuildOutputPath)
+            boolean containsModJar = modOutputDir.isDirectory()
+                && (modOutputDir.listFiles()?.any {
+                    it.isFile() && it.name.toLowerCase(Locale.ROOT).endsWith(".jar")
+                } ?: false)
+
+            if (containsModJar) {
+                try {
+                    new ProcessBuilder("explorer.exe", modOutputDir.absolutePath).start()
+                    logger.lifecycle("Tabby: opened mod output folder: ${modOutputDir.absolutePath}")
+                } catch (IOException exception) {
+                    logger.warn("Tabby: could not open mod output folder: ${exception.message}")
+                }
+            }
+        }
+    }
+}
