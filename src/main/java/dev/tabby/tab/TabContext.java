@@ -16,6 +16,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.phys.HitResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Client state owned by one logical tab.
@@ -26,6 +28,7 @@ import net.minecraft.world.phys.HitResult;
  * Particle effects are transient and are not retained independently per tab.
  */
 public final class TabContext {
+    private static final Logger LOGGER = LoggerFactory.getLogger("Tabby");
     private final int id;
     private String title;
 
@@ -96,6 +99,27 @@ public final class TabContext {
     }
 
     public void captureFrom(Minecraft client) {
+        if (!TabManager.isContextInstalled(this.id)) {
+            if (this.localServer && this.level != null) {
+                LOGGER.warn(
+                    "Refused to overwrite integrated-world tab {} from foreign client state (active tab {}, saved level={}, global level={}, saved player={}, global player={})",
+                    this.id,
+                    TabManager.activeId(),
+                    System.identityHashCode(this.level),
+                    client.level == null ? "null" : System.identityHashCode(client.level),
+                    this.player == null ? "null" : this.player.getId(),
+                    client.player == null ? "null" : client.player.getId()
+                );
+            } else {
+                LOGGER.debug(
+                    "Skipped capture for tab {} while client globals belong to tab {}",
+                    this.id,
+                    TabManager.activeId()
+                );
+            }
+            return;
+        }
+
         this.level = client.level;
         this.player = client.player;
         this.gameMode = client.gameMode;

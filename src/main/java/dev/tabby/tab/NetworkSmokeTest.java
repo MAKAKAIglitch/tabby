@@ -712,7 +712,19 @@ public final class NetworkSmokeTest {
     private static void assertSingleplayerWorldRetained(Minecraft client) {
         TabContext singleplayer = contextOrNull(singleplayerTabId);
         require(singleplayer != null, "The single-player TabContext disappeared");
-        require(singleplayer.level == savedSingleplayerLevel, "The single-player tab lost its ClientLevel");
+        require(
+            singleplayer.level == savedSingleplayerLevel,
+            "The single-player tab lost its ClientLevel: savedLevel="
+                + System.identityHashCode(savedSingleplayerLevel)
+                + ", tabLevel=" + (singleplayer.level == null ? "null" : System.identityHashCode(singleplayer.level))
+                + ", clientLevel=" + (client.level == null ? "null" : System.identityHashCode(client.level))
+                + ", activeTab=" + TabManager.activeId()
+                + ", tabLocalServer=" + singleplayer.localServer
+                + ", tabWorldTransitioning=" + singleplayer.worldTransitioning
+                + ", tabConnection=" + (singleplayer.networkConnection == null ? "null" : "connected=" + singleplayer.networkConnection.isConnected())
+                + ", savedConnection=" + (savedSingleplayerConnection == null ? "null" : "connected=" + savedSingleplayerConnection.isConnected())
+                + ", integratedServer=" + (((MinecraftAccessor) client).tabby$getSingleplayerServer() == savedIntegratedServer)
+        );
         require(singleplayer.player == savedSingleplayerPlayer, "The single-player tab lost its LocalPlayer");
         require(singleplayer.networkConnection == savedSingleplayerConnection, "The single-player tab replaced its memory connection");
         require(singleplayer.networkConnection != null && singleplayer.networkConnection.isConnected(),

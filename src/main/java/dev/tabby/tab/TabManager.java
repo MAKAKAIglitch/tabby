@@ -1085,6 +1085,18 @@ public final class TabManager {
                 continue;
             }
 
+            if (context.localServer && context.level != null && !context.worldTransitioning) {
+                LOGGER.warn(
+                    "Disconnect cleanup reached integrated-world tab {} while active tab {} owns the client (localServer={}, level={}, connectionMatch={}, listenerMatch={})",
+                    context.id(),
+                    activeId,
+                    context.localServer,
+                    System.identityHashCode(context.level),
+                    context.networkConnection == connection,
+                    context.clientConnection != null && context.clientConnection.getConnection() == connection
+                );
+            }
+
             if (context.networkConnection == connection) {
                 context.networkConnection = null;
             }
@@ -1259,6 +1271,14 @@ public final class TabManager {
                 runIn(context.id(), context.pendingConnection::tick);
             }
         }
+    }
+
+    /**
+     * Returns whether Minecraft's current global fields are installed for the given tab.
+     * Context snapshots must never capture globals belonging to another tab.
+     */
+    public static boolean isContextInstalled(int tabId) {
+        return client != null && currentContextId() == tabId;
     }
 
     private static int currentContextId() {
