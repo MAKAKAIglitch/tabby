@@ -45,6 +45,7 @@ public final class TabManager {
     private static final Map<PacketListener, Integer> LISTENER_OWNERS = new IdentityHashMap<>();
     private static final ThreadLocal<Integer> EXECUTION_CONTEXT = new ThreadLocal<>();
     private static final ThreadLocal<ArrayDeque<Integer>> CLIENT_LEVEL_TRANSITIONS = ThreadLocal.withInitial(ArrayDeque::new);
+    private static final ThreadLocal<ArrayDeque<Integer>> CLIENT_LOGIN_HANDLERS = ThreadLocal.withInitial(ArrayDeque::new);
     private static final boolean SMOKE_TEST_ENABLED = "1".equals(System.getenv("TABBY_SMOKE_TEST"));
 
     private static Minecraft client;
@@ -85,8 +86,8 @@ public final class TabManager {
     }
 
     private static void onClientTick(Minecraft minecraft) {
-        if (isClientLevelTransitioning()) {
-            LOGGER.debug("Skipping Tabby maintenance during nested client-level transition");
+        if (isClientLevelTransitioning() || isClientLoginInProgress()) {
+            LOGGER.debug("Skipping Tabby maintenance while a client login/world transition is in progress");
             return;
         }
 
@@ -203,9 +204,10 @@ public final class TabManager {
     }
 
     public static void captureCurrentState() {
-        if (client == null || isClientLevelTransitioning()) {
-            // Minecraft.setLevel() calls a nested tick while the new level is being
-            // installed. Do not capture the intentionally transient null/stale globals.
+        if (client == null || isClientLevelTransitioning() || isClientLoginInProgress()) {
+            // Minecraft.setLevel() and ClientPacketListener.handleLogin() contain nested
+            // screen ticks. Do not capture intentionally transient globals until the full
+            // login packet handler has created and installed its player.
             return;
         }
 
@@ -251,6 +253,63 @@ public final class TabManager {
         context.worldTransitioning = true;
         context.worldTransitionTicks = 0;
         LOGGER.info("Tabby: starting world transition in tab {} to '{}'", context.id(), worldId);
+    }
+
+    /**
+     * Brackets the full play-login packet handler, not just Minecraft.setLevel().
+     * The player is created only after setLevel() returns, so nested ticks must not run
+     * Tabby maintenance between installing the level and completing that creation.
+     */
+    public static void beginClientLogin(ClientPacketListener listener) {
+        if (client == null || listener == null || !client.isSameThread()) {
+            return;
+        }
+
+        int ownerId = ownerIdFor(listener);
+        if (ownerId < 0) {
+            ownerId = currentContextId();
+        }
+        CLIENT_LOGIN_HANDLERS.get().push(ownerId);
+        LOGGER.debug("Beginning ClientPacketListener.handleLogin for tab {}", ownerId);
+    }
+
+    public static void endClientLogin(ClientPacketListener listener) {
+        if (client == null || listener == null || !client.isSameThread()) {
+            return;
+        }
+
+        ArrayDeque<Integer> handlers = CLIENT_LOGIN_HANDLERS.get();
+        int ownerId = handlers.isEmpty() ? ownerIdFor(listener) : handlers.pop();
+        if (ownerId < 0) {
+            ownerId = currentContextId();
+        }
+        boolean sameTabStillLoggingIn = handlers.contains(ownerId);
+        if (handlers.isEmpty()) {
+            CLIENT_LOGIN_HANDLERS.remove();
+        }
+
+        TabContext context = TABS.get(ownerId);
+        if (context == null) {
+            LOGGER.warn("Completed login for unknown Tabby context {}", ownerId);
+            return;
+        }
+
+        context.captureFrom(client);
+        if (!sameTabStillLoggingIn) {
+            context.worldTransitioning = false;
+            context.worldTransitionTicks = 0;
+        }
+        LOGGER.debug(
+            "Completed ClientPacketListener.handleLogin for tab {} (level={}, player={}, gameMode={})",
+            ownerId,
+            context.level != null,
+            context.player != null,
+            context.gameMode != null
+        );
+    }
+
+    public static boolean isClientLoginInProgress() {
+        return !CLIENT_LOGIN_HANDLERS.get().isEmpty();
     }
 
     public static void beginClientLevelTransition(ClientLevel incomingLevel) {

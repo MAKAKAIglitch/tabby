@@ -20,7 +20,8 @@
     "LevelRendererAccessor",
     "ParticleEngineAccessor",
     "GuiMixin",
-    "ClientLevelAccessor"
+    "ClientLevelAccessor",
+    "ClientLoginMixin"
   ],
   "injectors": {
     "defaultRequire": 1
