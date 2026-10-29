@@ -42,6 +42,7 @@ public final class TabManager {
     private static volatile int activeId = -1;
     private static int nextId;
     private static int smokeTestTicks;
+    private static int blockedSingleplayerWorldStartCount;
 
     private TabManager() {
     }
@@ -52,6 +53,7 @@ public final class TabManager {
         }
 
         client = minecraft;
+        blockedSingleplayerWorldStartCount = 0;
         TabbyConfig.load();
         TabContext initial = TabContext.capture(client, nextId++, "Main Menu");
         TABS.put(initial.id(), initial);
@@ -312,6 +314,7 @@ public final class TabManager {
         if (client == null) {
             return;
         }
+        blockedSingleplayerWorldStartCount++;
         SystemToast.add(
             client.getToastManager(),
             SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
@@ -319,6 +322,10 @@ public final class TabManager {
             Component.literal("A single-player world is already open in another tab.")
         );
         client.setScreen(new TitleScreen());
+    }
+
+    public static int blockedSingleplayerWorldStartCount() {
+        return blockedSingleplayerWorldStartCount;
     }
 
     public static boolean handleShortcut(int key, int modifiers) {

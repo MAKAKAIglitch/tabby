@@ -2,6 +2,8 @@ package dev.matvey.tabby.tab;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.KeyMapping;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -33,13 +35,29 @@ public final class NetworkSmokeTest {
         START_SERVER_A,
         WAIT_FOR_SERVER_A,
         WAIT_FOR_SERVER_B,
-        SWITCHING
+        SWITCHING,
+        START_SINGLEPLAYER,
+        WAIT_FOR_SINGLEPLAYER,
+        WAIT_FOR_NETWORK_WITH_SINGLEPLAYER,
+        WAIT_FOR_SECOND_SINGLEPLAYER_BLOCK,
+        COMPLETE
     }
 
     private static Phase phase = Phase.START_SERVER_A;
     private static int phaseTicks;
     private static int activeTicks;
     private static boolean successLogged;
+    private static final int SINGLEPLAYER_TIMEOUT_TICKS = 2400;
+    private static final String SINGLEPLAYER_WORLD_A = "tabby-sp-test-a";
+    private static final String SINGLEPLAYER_WORLD_B = "tabby-sp-test-b";
+    private static int singleplayerTabId = -1;
+    private static int networkAfterSingleplayerTabId = -1;
+    private static int secondWorldGuardTabId = -1;
+    private static int blockedWorldStartCountBefore;
+    private static ClientLevel savedSingleplayerLevel;
+    private static LocalPlayer savedSingleplayerPlayer;
+    private static Connection savedSingleplayerConnection;
+    private static IntegratedServer savedIntegratedServer;
 
     private NetworkSmokeTest() {
     }
@@ -58,6 +76,11 @@ public final class NetworkSmokeTest {
             case WAIT_FOR_SERVER_A -> waitForServerA(client);
             case WAIT_FOR_SERVER_B -> waitForServerB(client);
             case SWITCHING -> exerciseConnections(client);
+            case START_SINGLEPLAYER -> startSingleplayer(client);
+            case WAIT_FOR_SINGLEPLAYER -> waitForSingleplayer(client);
+            case WAIT_FOR_NETWORK_WITH_SINGLEPLAYER -> waitForNetworkWithSingleplayer(client);
+            case WAIT_FOR_SECOND_SINGLEPLAYER_BLOCK -> waitForSecondSingleplayerBlock(client);
+            case COMPLETE -> { }
         }
     }
 
@@ -269,26 +292,157 @@ public final class NetworkSmokeTest {
                 activeTicks
             );
 
-            Connection connectionB = context(1).networkConnection;
-            require(connectionB != null && connectionB.isConnected(), "Server B was not live before close cleanup");
-            TabManager.closeTab(1);
-            require(contextOrNull(1) == null, "Closing tab 1 did not remove its context");
-            require(!connectionB.isConnected(), "Closing tab 1 did not disconnect its network connection");
-            TabContext remainingTab = context(0);
-            require(isJoined(remainingTab), "Closing tab 1 damaged the connection in tab 0");
-            require(client.level == remainingTab.level, "Closing tab 1 changed the remaining active world");
-            require(client.player == remainingTab.player, "Closing tab 1 changed the remaining active player");
-            require(client.getConnection() == remainingTab.clientConnection, "Closing tab 1 changed the remaining active connection");
-
             Connection connectionA = context(0).networkConnection;
-            require(connectionA != null && connectionA.isConnected(), "Server A was not live before final-tab cleanup");
+            require(connectionA != null && connectionA.isConnected(), "Server A was not live before the single-player test");
             TabManager.closeTab(0);
-            require(!connectionA.isConnected(), "Closing the last tab did not disconnect server A");
-            require(TabManager.contexts().size() == 1, "Closing the last tab did not create one menu context");
-            require(client.screen instanceof TitleScreen, "Closing the last tab did not return to the title screen");
-            LOGGER.info("Network smoke test: per-tab disconnect cleanup and final-tab return passed.");
-            client.stop();
+            require(contextOrNull(0) == null, "Closing tab 0 did not remove its context");
+            require(!connectionA.isConnected(), "Closing tab 0 did not disconnect server A");
+            singleplayerTabId = TabManager.activeId();
+            require(contextOrNull(singleplayerTabId) != null, "No active tab remained for the single-player test");
+
+            phase = Phase.START_SINGLEPLAYER;
+            phaseTicks = 0;
+            LOGGER.info("Network smoke test: two-server isolation passed; opening an integrated single-player world next");
         }
+    }
+
+    private static void startSingleplayer(Minecraft client) {
+        if (++phaseTicks < 5) {
+            return;
+        }
+
+        require(TabManager.activeId() == singleplayerTabId, "Single-player fixture must load in its designated tab");
+        phase = Phase.WAIT_FOR_SINGLEPLAYER;
+        phaseTicks = 0;
+        LOGGER.info("Network smoke test: opening single-player save {}", SINGLEPLAYER_WORLD_A);
+        client.createWorldOpenFlows().openWorld(SINGLEPLAYER_WORLD_A, () -> { });
+    }
+
+    private static void waitForSingleplayer(Minecraft client) {
+        phaseTicks++;
+        TabContext singleplayer = contextOrNull(singleplayerTabId);
+        IntegratedServer server = ((MinecraftAccessor) client).tabby$getSingleplayerServer();
+
+        if (isJoined(singleplayer) && singleplayer.localServer && server != null && server.isRunning()) {
+            savedSingleplayerLevel = singleplayer.level;
+            savedSingleplayerPlayer = singleplayer.player;
+            savedSingleplayerConnection = singleplayer.networkConnection;
+            savedIntegratedServer = server;
+            require(((MinecraftAccessor) client).tabby$isLocalServer(), "Minecraft did not mark the active fixture as single-player");
+            LOGGER.info("Network smoke test: integrated single-player world is live in tab {}", singleplayerTabId);
+
+            TabManager.createTab();
+            networkAfterSingleplayerTabId = TabManager.activeId();
+            require(networkAfterSingleplayerTabId != singleplayerTabId, "Creating the network tab did not create a separate context");
+            phase = Phase.WAIT_FOR_NETWORK_WITH_SINGLEPLAYER;
+            phaseTicks = 0;
+            String address = environmentAddress("TABBY_SERVER_A", "127.0.0.1:25565");
+            LOGGER.info("Network smoke test: connecting a network tab while the single-player world remains in the background");
+            connect(client, "Tabby CI network beside single-player", address);
+        } else if (phaseTicks > SINGLEPLAYER_TIMEOUT_TICKS) {
+            fail("Integrated single-player fixture did not join within " + SINGLEPLAYER_TIMEOUT_TICKS
+                + " ticks: " + connectionState(client, singleplayer));
+        }
+    }
+
+    private static void waitForNetworkWithSingleplayer(Minecraft client) {
+        phaseTicks++;
+        TabContext network = contextOrNull(networkAfterSingleplayerTabId);
+        if (isJoined(network)) {
+            assertSingleplayerWorldRetained(client);
+            require(network.level != savedSingleplayerLevel, "Network tab reused the single-player ClientLevel");
+            require(network.player != savedSingleplayerPlayer, "Network tab reused the single-player LocalPlayer");
+            require(network.networkConnection != savedSingleplayerConnection, "Network tab reused the single-player Connection");
+
+            TabManager.switchTo(singleplayerTabId);
+            assertSingleplayerWorldRetained(client);
+            require(client.level == savedSingleplayerLevel, "Switching to single-player did not restore its level");
+            require(client.player == savedSingleplayerPlayer, "Switching to single-player did not restore its player");
+            require(client.getConnection() == savedSingleplayerConnection, "Switching to single-player did not restore its packet listener");
+            require(((MinecraftAccessor) client).tabby$isLocalServer(), "Single-player mode was lost after switching back");
+
+            TabManager.switchTo(networkAfterSingleplayerTabId);
+            assertActiveNetworkTab(client, network);
+            assertSingleplayerWorldRetained(client);
+
+            blockedWorldStartCountBefore = TabManager.blockedSingleplayerWorldStartCount();
+            TabManager.createTab();
+            secondWorldGuardTabId = TabManager.activeId();
+            require(secondWorldGuardTabId != singleplayerTabId && secondWorldGuardTabId != networkAfterSingleplayerTabId,
+                "Second-world guard test did not create a separate tab");
+
+            phase = Phase.WAIT_FOR_SECOND_SINGLEPLAYER_BLOCK;
+            phaseTicks = 0;
+            LOGGER.info("Network smoke test: attempting to open a second single-player save while the first is in the background");
+            client.createWorldOpenFlows().openWorld(SINGLEPLAYER_WORLD_B, () -> { });
+        } else if (phaseTicks > SINGLEPLAYER_TIMEOUT_TICKS) {
+            fail("Network tab did not join beside single-player within " + SINGLEPLAYER_TIMEOUT_TICKS
+                + " ticks: " + connectionState(client, network));
+        }
+    }
+
+    private static void waitForSecondSingleplayerBlock(Minecraft client) {
+        phaseTicks++;
+        int blockedCount = TabManager.blockedSingleplayerWorldStartCount();
+        if (blockedCount > blockedWorldStartCountBefore) {
+            require(blockedCount == blockedWorldStartCountBefore + 1, "The second-world guard ran an unexpected number of times");
+            assertSingleplayerWorldRetained(client);
+
+            TabContext network = contextOrNull(networkAfterSingleplayerTabId);
+            require(isJoined(network), "Attempting a second single-player world disconnected the network tab");
+            Connection networkConnection = network.networkConnection;
+            TabManager.switchTo(networkAfterSingleplayerTabId);
+            assertActiveNetworkTab(client, network);
+            assertSingleplayerWorldRetained(client);
+
+            TabManager.closeTab(secondWorldGuardTabId);
+            require(contextOrNull(secondWorldGuardTabId) == null, "Closing the guard-test tab did not remove its context");
+            require(isJoined(network), "Closing the guard-test tab damaged the network connection");
+
+            TabManager.closeTab(singleplayerTabId);
+            require(contextOrNull(singleplayerTabId) == null, "Closing the single-player tab did not remove its context");
+            require(savedSingleplayerConnection != null && !savedSingleplayerConnection.isConnected(),
+                "Closing the single-player tab did not disconnect its memory connection");
+            require(((MinecraftAccessor) client).tabby$getSingleplayerServer() == null,
+                "Closing the single-player tab left its IntegratedServer registered");
+            require(savedIntegratedServer != null && !savedIntegratedServer.isRunning(),
+                "Closing the single-player tab did not stop its IntegratedServer");
+            require(isJoined(network) && network.networkConnection == networkConnection,
+                "Closing the single-player tab damaged the network tab");
+
+            TabManager.closeTab(networkAfterSingleplayerTabId);
+            require(contextOrNull(networkAfterSingleplayerTabId) == null, "Closing the final network tab did not remove its context");
+            require(TabManager.contexts().size() == 1, "Final cleanup did not leave exactly one menu context");
+            require(client.screen instanceof TitleScreen, "Final cleanup did not return to the title screen");
+            LOGGER.info("Tabby single-player integration smoke test passed: the integrated world survived a network-tab connection and a second-world launch was blocked.");
+            phase = Phase.COMPLETE;
+            client.stop();
+        } else if (phaseTicks > SINGLEPLAYER_TIMEOUT_TICKS) {
+            fail("The second single-player world was not blocked within " + SINGLEPLAYER_TIMEOUT_TICKS + " ticks");
+        }
+    }
+
+    private static void assertSingleplayerWorldRetained(Minecraft client) {
+        TabContext singleplayer = contextOrNull(singleplayerTabId);
+        require(singleplayer != null, "The single-player TabContext disappeared");
+        require(singleplayer.level == savedSingleplayerLevel, "The single-player tab lost its ClientLevel");
+        require(singleplayer.player == savedSingleplayerPlayer, "The single-player tab lost its LocalPlayer");
+        require(singleplayer.networkConnection == savedSingleplayerConnection, "The single-player tab replaced its memory connection");
+        require(singleplayer.networkConnection != null && singleplayer.networkConnection.isConnected(),
+            "The single-player memory connection disconnected");
+        require(singleplayer.localServer, "The single-player context lost its localServer flag");
+        require(((MinecraftAccessor) client).tabby$getSingleplayerServer() == savedIntegratedServer,
+            "Minecraft did not retain the original IntegratedServer pointer");
+        require(savedIntegratedServer != null && savedIntegratedServer.isRunning(),
+            "The original IntegratedServer is no longer running");
+    }
+
+    private static void assertActiveNetworkTab(Minecraft client, TabContext network) {
+        require(TabManager.activeId() == networkAfterSingleplayerTabId, "The network tab is not active");
+        require(client.level == network.level, "Minecraft.level does not match the active network tab");
+        require(client.player == network.player, "Minecraft.player does not match the active network tab");
+        require(client.getConnection() == network.clientConnection, "Minecraft.getConnection() does not match the active network tab");
+        require(!((MinecraftAccessor) client).tabby$isLocalServer(), "A network tab retained the local-server flag");
     }
 
     private static void connect(Minecraft client, String label, String address) {

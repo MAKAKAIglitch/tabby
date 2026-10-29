@@ -109,22 +109,35 @@ jobs:
           tail -n 100 "$root/b/server.log" || true
           exit 1
 
-      - name: Launch Minecraft client and verify both connections
+      - name: Prepare single-player world fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/tabby-test-servers"
+          mkdir -p run/saves
+          cp -a "$root/a/tabby-world-a" run/saves/tabby-sp-test-a
+          cp -a "$root/b/tabby-world-b" run/saves/tabby-sp-test-b
+          test -s run/saves/tabby-sp-test-a/level.dat
+          test -s run/saves/tabby-sp-test-b/level.dat
+          echo "Prepared two local single-player world fixtures from the same-version Minecraft servers."
+
+      - name: Launch Minecraft client and verify network and single-player isolation
         shell: bash
         run: |
           set +e
-          timeout 300s env TABBY_NETWORK_SMOKE_TEST=1 xvfb-run -a ./gradlew --no-daemon runClient 2>&1 | tee network-runclient.log
+          timeout 480s env TABBY_NETWORK_SMOKE_TEST=1 xvfb-run -a ./gradlew --no-daemon runClient 2>&1 | tee network-runclient.log
           status=${PIPESTATUS[0]}
           set -e
 
           if [ "$status" -eq 0 ] \
             && grep -Fq "Tabby initialized for Minecraft 1.21.4." network-runclient.log \
-            && grep -Fq "Tabby network smoke test passed: both connections remained live for 2400 ticks." network-runclient.log; then
-            echo "Both local offline-mode connections stayed live for 2400 ticks; the client exited cleanly after the test."
+            && grep -Fq "Tabby network smoke test passed: both connections remained live for 2400 ticks." network-runclient.log \
+            && grep -Fq "Tabby single-player integration smoke test passed: the integrated world survived a network-tab connection and a second-world launch was blocked." network-runclient.log; then
+            echo "Network switching, integrated-world retention, second-world blocking, and cleanup all passed."
             exit 0
           fi
 
-          echo "Dual-connection client test failed (exit code: $status)."
+          echo "Network/single-player client test failed (exit code: $status)."
           exit 1
 
       - name: Stop local test servers
