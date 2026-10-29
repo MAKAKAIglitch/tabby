@@ -12,7 +12,7 @@ Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its
 
 **Stage 5 verified by CI.** `config/tabby.json` stores the background-tab limit, Ctrl shortcut key codes, and optional address-only server restoration (`restoreServerAddresses`). With Mod Menu installed, **Mods → Tabby → Settings** opens a native Minecraft configuration screen to edit the tab limit, restoration option, and Ctrl+T/Ctrl+W/Ctrl+Tab shortcuts. The tab strip shows pin state and cached ping when available, supports right-click pin/unpin and drag reordering, and reconnects saved server addresses when restoration is enabled. CI checks default config values, tab order/pinning, and deduplicated address persistence.
 
-**Stage 6 verified by CI (2026-10-29).** [Workflow run 40816763509 passed](https://github.com/MAKAKAIglitch/tabby/actions/runs/40816763509): the baseline Fabric API network/single-player regression suite and four isolated compatibility runs all passed. The test downloaded SHA-512-pinned Fabric builds for Minecraft 1.21.4 and verified that each optional mod could load a real local server world, keep separate tab renderers, and survive six context switches. Results:
+**Stage 6 verified by CI (2026-10-29).** [Workflow run 40836537553 passed](https://github.com/MAKAKAIglitch/tabby/actions/runs/40836537553): the baseline Fabric API network/single-player regression suite and four isolated compatibility runs all passed. This run also verified the tab strip is visible on `TitleScreen` and `PauseScreen`, hidden on other screens, and that the actual Mod Menu entrypoint initializes all Tabby settings controls. The test downloaded SHA-512-pinned Fabric builds for Minecraft 1.21.4 and verified that each optional mod could load a real local server world, keep separate tab renderers, and survive six context switches. Results:
 
 | Configuration | Result |
 |---|---|
@@ -20,7 +20,7 @@ Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its
 | Sodium 0.6.13 | Passed — client launch, world load, six context switches |
 | Iris 1.8.8 + Sodium 0.6.13 | Passed — client launch, world load, six context switches |
 | Lithium 0.15.3 | Passed — client launch, world load, six context switches |
-| Mod Menu 13.0.2 | Passed — client launch, world load, six context switches |
+| Mod Menu 13.0.2 | Passed — settings screen and controls initialized, client launch, world load, six context switches |
 
 These are **headless smoke tests**, not a claim of full gameplay compatibility. CI uses software OpenGL (llvmpipe); hardware-GPU rendering, enabled shaderpacks, longer sessions, and the four mods loaded together were not tested. Full content-level isolation of chat, inventory, and entities also remains a follow-up.
 
