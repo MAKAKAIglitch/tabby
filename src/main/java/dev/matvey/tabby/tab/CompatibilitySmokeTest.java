@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.server.level.ParticleStatus;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +63,9 @@ public final class CompatibilitySmokeTest {
         }
 
         require(TabManager.activeId() == 0, "Compatibility test expected the initial tab to be active");
+        // Headless compatibility runs can tick entities before particle atlases finish reloading.
+        // Particles are not part of this renderer/context-switch smoke test.
+        client.options.particles().set(ParticleStatus.MINIMAL);
         String address = environmentValue("TABBY_SERVER_A", "127.0.0.1:25565");
         ServerData serverData = new ServerData("Tabby compatibility server", address, ServerData.Type.OTHER);
         ConnectScreen.startConnecting(
