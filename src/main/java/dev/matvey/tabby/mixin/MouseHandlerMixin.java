@@ -23,11 +23,16 @@ public abstract class MouseHandlerMixin {
         CallbackInfo ci
     ) {
         Minecraft client = Minecraft.getInstance();
-        if (window != client.getWindow().getWindow()
-            || action != GLFW.GLFW_PRESS
-            || client.screen != null
-            || client.getOverlay() != null
-            || button != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (window != client.getWindow().getWindow()) {
+            return;
+        }
+
+        if (action == GLFW.GLFW_RELEASE && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            TabBar.handleMouseRelease();
+            return;
+        }
+        if (action != GLFW.GLFW_PRESS || client.screen != null || client.getOverlay() != null
+            || (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_RIGHT)) {
             return;
         }
 
@@ -40,6 +45,14 @@ public abstract class MouseHandlerMixin {
 
         if (TabBar.handleClick(client, mouseX, mouseY, button)) {
             ci.cancel();
+        }
+    }
+
+    @Inject(method = "onMove(JDD)V", at = @At("HEAD"))
+    private void tabby$handleTabDrag(long window, double mouseX, double mouseY, CallbackInfo ci) {
+        Minecraft client = Minecraft.getInstance();
+        if (window == client.getWindow().getWindow()) {
+            TabBar.handleMouseMove(client, mouseX, mouseY);
         }
     }
 }

@@ -190,7 +190,43 @@ public final class NetworkSmokeTest {
         validateConnections(client);
         verifyDuplicateConnectionGuard(client);
         verifyStabilityControls(client);
+        verifyTabReorderAndPinning(client);
         LOGGER.info("Network smoke test: tab strip, duplicate guard, key reset, tab limit, and single-player guard passed");
+    }
+
+    private static void verifyTabReorderAndPinning(Minecraft client) {
+        require(TabbyConfig.keyCreateTab() == GLFW.GLFW_KEY_T, "Default Ctrl+T mapping was not loaded");
+        require(TabbyConfig.keyCloseTab() == GLFW.GLFW_KEY_W, "Default Ctrl+W mapping was not loaded");
+        require(TabbyConfig.keyNextTab() == GLFW.GLFW_KEY_TAB, "Default Ctrl+Tab mapping was not loaded");
+        require(TabbyConfig.showInMenus(), "The tab bar should be enabled in menus by default");
+        require(TabbyConfig.inGameBarMode().equals("hover_or_alt"), "The default in-game tab bar mode was not loaded");
+
+        TabManager.moveTab(1, 0);
+        require(TabManager.contexts().get(0).id() == 1, "Dragging/reordering a tab did not change its position");
+        TabManager.moveTab(1, 1);
+        require(TabManager.contexts().get(0).id() == 0 && TabManager.contexts().get(1).id() == 1,
+            "Moving the tab back did not restore the original order");
+
+        TabManager.togglePinned(1);
+        require(context(1).pinned, "Pinning a tab did not set its pinned state");
+        require(TabManager.contexts().get(0).id() == 1, "Pinned tabs were not moved before unpinned tabs");
+        TabManager.togglePinned(1);
+        require(!context(1).pinned, "Unpinning a tab did not clear its pinned state");
+        require(TabManager.contexts().get(0).id() == 0 && TabManager.contexts().get(1).id() == 1,
+            "Unpinning a tab did not restore the expected order");
+
+        List<String> previousAddresses = TabbyConfig.restoredServerAddresses();
+        TabbyConfig.saveRestoredServerAddresses(List.of(
+            "127.0.0.1:25565",
+            "127.0.0.1:25566",
+            "127.0.0.1:25565",
+            " "
+        ));
+        require(TabbyConfig.restoredServerAddresses().equals(List.of("127.0.0.1:25565", "127.0.0.1:25566")),
+            "Stored server addresses were not deduplicated or validated");
+        TabbyConfig.saveRestoredServerAddresses(previousAddresses);
+
+        LOGGER.info("Network smoke test: configurable shortcuts, bar mode, pin/reorder, and address-only config persistence passed");
     }
 
     private static void verifyStabilityControls(Minecraft client) {

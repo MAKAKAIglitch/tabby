@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -43,6 +44,8 @@ public final class TabManager {
     private static int nextId;
     private static int smokeTestTicks;
     private static int blockedSingleplayerWorldStartCount;
+    private static final List<String> RESTORE_QUEUE = new ArrayList<>();
+    private static int restoreTickDelay;
 
     private TabManager() {
     }
@@ -54,7 +57,15 @@ public final class TabManager {
 
         client = minecraft;
         blockedSingleplayerWorldStartCount = 0;
+        restoreTickDelay = 0;
+        RESTORE_QUEUE.clear();
         TabbyConfig.load();
+        if (TabbyConfig.restoreServerAddresses() && !NetworkSmokeTest.isEnabled()) {
+            RESTORE_QUEUE.addAll(TabbyConfig.restoredServerAddresses());
+            if (!RESTORE_QUEUE.isEmpty()) {
+                LOGGER.info("Restoring {} server address tab(s) from config", RESTORE_QUEUE.size());
+            }
+        }
         TabContext initial = TabContext.capture(client, nextId++, "Main Menu");
         TABS.put(initial.id(), initial);
         activeId = initial.id();
@@ -71,6 +82,7 @@ public final class TabManager {
             runPrototypeSmokeTestTick();
         }
 
+        tickRestoredServerAddresses(minecraft);
         tickBackgroundConnections();
     }
 
@@ -172,8 +184,98 @@ public final class TabManager {
     /**
      * Kept for the network smoke test; normal UI and shortcuts use createTab().
      */
+    private static void tickRestoredServerAddresses(Minecraft minecraft) {
+        if (client == null || NetworkSmokeTest.isEnabled() || RESTORE_QUEUE.isEmpty()) {
+            return;
+        }
+
+        if (++restoreTickDelay < 20) {
+            return;
+        }
+        restoreTickDelay = 0;
+
+        if (TABS.size() - 1 >= TabbyConfig.maxBackgroundTabs()) {
+            LOGGER.warn("Stopped restoring server tabs because the configured background-tab limit was reached");
+            RESTORE_QUEUE.clear();
+            return;
+        }
+
+        String address = RESTORE_QUEUE.remove(0);
+        try {
+            createTab();
+            TabContext context = TABS.get(activeId);
+            if (context == null) {
+                return;
+            }
+
+            ServerData serverData = new ServerData(address, address, ServerData.Type.OTHER);
+            context.serverData = serverData;
+            context.setTitle(address);
+            ConnectScreen.startConnecting(
+                client.screen,
+                minecraft,
+                ServerAddress.parseString(address),
+                serverData,
+                false,
+                null
+            );
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Failed to restore Tabby server address {}", address, exception);
+        }
+    }
+
     public static void createTestTab() {
         createTab();
+    }
+
+    public static void togglePinned(int tabId) {
+        TabContext context = TABS.get(tabId);
+        if (context == null) {
+            return;
+        }
+
+        context.pinned = !context.pinned;
+        moveTab(tabId, context.pinned ? 0 : TABS.size() - 1);
+        LOGGER.debug("Tab {} pin state changed to {}", tabId, context.pinned);
+    }
+
+    public static void moveTab(int tabId, int targetIndex) {
+        if (!TABS.containsKey(tabId) || TABS.size() < 2) {
+            return;
+        }
+
+        List<TabContext> ordered = new ArrayList<>(TABS.values());
+        int oldIndex = -1;
+        for (int index = 0; index < ordered.size(); index++) {
+            if (ordered.get(index).id() == tabId) {
+                oldIndex = index;
+                break;
+            }
+        }
+        if (oldIndex < 0) {
+            return;
+        }
+
+        TabContext moving = ordered.remove(oldIndex);
+        if (oldIndex < targetIndex) {
+            targetIndex--;
+        }
+
+        int pinnedCount = (int) ordered.stream().filter(context -> context.pinned).count();
+        if (moving.pinned) {
+            targetIndex = Math.max(0, Math.min(pinnedCount, targetIndex));
+        } else {
+            targetIndex = Math.max(pinnedCount, Math.min(ordered.size(), targetIndex));
+        }
+        if (ordered.size() > 0 && targetIndex > ordered.size()) {
+            targetIndex = ordered.size();
+        }
+
+        ordered.add(targetIndex, moving);
+        TABS.clear();
+        for (TabContext context : ordered) {
+            TABS.put(context.id(), context);
+        }
     }
 
     public static void closeTab(int tabId) {
@@ -263,6 +365,17 @@ public final class TabManager {
         }
 
         LOGGER.debug("Shutting down Tabby; closing {} tab contexts", TABS.size());
+        if (TabbyConfig.restoreServerAddresses()) {
+            List<String> addresses = new ArrayList<>();
+            for (TabContext context : TABS.values()) {
+                ServerData serverData = context.serverData;
+                if (!context.localServer && serverData != null && serverData.ip != null && !serverData.ip.isBlank()) {
+                    addresses.add(serverData.ip);
+                }
+            }
+            TabbyConfig.saveRestoredServerAddresses(addresses);
+        }
+        RESTORE_QUEUE.clear();
         KeyMapping.releaseAll();
         shuttingDownClient.getSoundManager().stop();
 
@@ -333,20 +446,21 @@ public final class TabManager {
             return false;
         }
 
-        if (key == GLFW.GLFW_KEY_T) {
+        if (key == TabbyConfig.keyCreateTab()) {
             createTab();
             return true;
         }
-        if (key == GLFW.GLFW_KEY_W) {
+        if (key == TabbyConfig.keyCloseTab()) {
             closeTab(activeId);
             return true;
         }
-        if (key == GLFW.GLFW_KEY_TAB) {
+        if (key == TabbyConfig.keyNextTab()) {
             switchToNext();
             return true;
         }
-        if (key >= GLFW.GLFW_KEY_1 && key <= GLFW.GLFW_KEY_9) {
-            switchToIndex(key - GLFW.GLFW_KEY_1);
+        int firstTabKey = TabbyConfig.keySelectFirstTab();
+        if (key >= firstTabKey && key < firstTabKey + 9) {
+            switchToIndex(key - firstTabKey);
             return true;
         }
         return false;

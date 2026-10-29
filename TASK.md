@@ -25,7 +25,7 @@ Create a client-side Fabric mod for Minecraft 1.21.4 that provides browser-style
 - [x] Stage 2 — tab strip, active-tab highlight, titles, close/plus controls, and Ctrl+T/Ctrl+W/Ctrl+Tab/Ctrl+1..9 verified by CI. The test exercised the actual keyboard and click paths, then kept both server connections alive for 2400 ticks.
 - [x] Stage 3 — duplicate attempts are intercepted before vanilla disconnects the active tab; disconnect callbacks release tab-owned references; CI covers duplicate blocking, closing a live tab, and closing the final tab.
 - [x] Stage 4 — CI verifies key release on switch, the JSON-configured background-tab limit, 2400-tick dual-connection stability, real integrated single-player retention while connecting to a network tab, blocking a second single-player world, connection cleanup, and clean client shutdown. Sound stop, cursor reset, renderer refresh, and integrated-server preservation hooks are implemented.
-- [ ] Stage 5 — extend JSON config to bar visibility and key bindings; add ping, drag/pin, and optional restoration of server addresses. Background-tab count is already configurable via `config/tabby.json`.
+- [ ] Stage 5 — JSON config now supports background-tab count, shortcut keys, menu visibility, in-game bar mode, and optional address-only server restoration. Ping labels, drag reordering, and pin/unpin are implemented; CI checks configuration defaults, reorder/pin ordering, and deduplicated address persistence.
 - [ ] Stage 6 — compatibility checks and README report.
 
 ## Stage 0 — scaffold

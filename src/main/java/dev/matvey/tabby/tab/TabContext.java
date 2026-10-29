@@ -41,6 +41,7 @@ public final class TabContext {
     public String playerName;
     public boolean connecting;
     public boolean localServer;
+    public boolean pinned;
 
     public LevelRenderer levelRenderer;
     public ParticleEngine particleEngine;

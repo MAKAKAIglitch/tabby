@@ -10,7 +10,7 @@ Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its
 
 **Stage 4 verified by CI.** The test connected one client to two offline-mode servers, switched between them for 2400 ticks, then opened an actual integrated single-player world, connected a different tab to a network server, switched back to verify the same world/player/memory connection/IntegratedServer remained live, and confirmed that opening a second single-player save was blocked. It then closed the single-player and network tabs and returned to the title screen. CI also verifies key release, the configured background-tab limit (default 4), duplicate-connection protection, and clean shutdown.
 
-**Stage 5 in progress.** `config/tabby.json` currently exposes the background-tab limit. Remaining work includes configurable bar visibility and shortcuts, plus per-tab ping, drag/pin, and optional restoration of server addresses.
+**Stage 5 in progress.** `config/tabby.json` exposes the background-tab limit, Ctrl shortcut key codes, menu visibility, in-game bar mode (`always`, `hover_or_alt`, `hidden`), and optional address-only server restoration (`restoreServerAddresses`). The tab strip now shows pin state and cached ping when available, supports right-click pin/unpin and drag reordering, and reconnects saved server addresses when restoration is enabled. CI checks default config values, tab order/pinning, and deduplicated address persistence.
 
 ## Requirements
 

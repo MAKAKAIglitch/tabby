@@ -36,6 +36,10 @@ public final class TabBar {
     private static final int CLOSE_HOVER_COLOR = 0xFF7A3540;
 
     private static boolean initialized;
+    private static int draggingTabId = -1;
+    private static double dragStartX;
+    private static double dragStartY;
+    private static boolean dragStarted;
 
     private TabBar() {
     }
@@ -48,7 +52,11 @@ public final class TabBar {
 
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
             ScreenEvents.afterRender(screen).register(
-                (renderedScreen, graphics, mouseX, mouseY, tickDelta) -> render(client, graphics)
+                (renderedScreen, graphics, mouseX, mouseY, tickDelta) -> {
+                    if (TabbyConfig.showInMenus()) {
+                        render(client, graphics);
+                    }
+                }
             );
             ScreenMouseEvents.allowMouseClick(screen).register(
                 (clickedScreen, mouseX, mouseY, button) -> !handleClick(client, mouseX, mouseY, button)
@@ -61,7 +69,7 @@ public final class TabBar {
                 ResourceLocation.fromNamespaceAndPath("tabby", "tab_bar"),
                 (graphics, tickCounter) -> {
                     Minecraft client = Minecraft.getInstance();
-                    if (client.screen == null && client.getOverlay() == null) {
+                    if (client.screen == null && client.getOverlay() == null && shouldShowInGameBar(client)) {
                         render(client, graphics);
                     }
                 }
@@ -98,9 +106,33 @@ public final class TabBar {
                 graphics.fill(right - CLOSE_WIDTH, BAR_TOP + 2, right, bottom - 2, CLOSE_HOVER_COLOR);
             }
 
-            String title = truncate(client, slot.title(), Math.max(10, slot.width() - CLOSE_WIDTH - 12));
             int textY = BAR_TOP + (BAR_HEIGHT - client.font.lineHeight) / 2;
-            graphics.drawString(client.font, title, slot.x() + 6, textY, slot.active() ? TEXT_COLOR : MUTED_TEXT_COLOR, false);
+            int pinnedOffset = slot.pinned() ? 11 : 0;
+            int pingWidth = slot.pingLabel().isEmpty() ? 0 : client.font.width(slot.pingLabel()) + 5;
+            int titleMaxWidth = Math.max(10, slot.width() - CLOSE_WIDTH - 12 - pinnedOffset - pingWidth);
+            String title = truncate(client, slot.title(), titleMaxWidth);
+
+            if (slot.pinned()) {
+                graphics.drawString(client.font, "●", slot.x() + 3, textY, ACTIVE_ACCENT, false);
+            }
+            graphics.drawString(
+                client.font,
+                title,
+                slot.x() + 6 + pinnedOffset,
+                textY,
+                slot.active() ? TEXT_COLOR : MUTED_TEXT_COLOR,
+                false
+            );
+            if (!slot.pingLabel().isEmpty()) {
+                graphics.drawString(
+                    client.font,
+                    slot.pingLabel(),
+                    right - CLOSE_WIDTH - client.font.width(slot.pingLabel()) - 3,
+                    textY,
+                    MUTED_TEXT_COLOR,
+                    false
+                );
+            }
             graphics.drawString(
                 client.font,
                 "×",
@@ -124,8 +156,19 @@ public final class TabBar {
     }
 
     public static boolean handleClick(Minecraft client, double mouseX, double mouseY, int button) {
-        if (client == null || button != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (client == null || (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_RIGHT)) {
             return false;
+        }
+        if (client.screen != null && !TabbyConfig.showInMenus()) {
+            return false;
+        }
+        if (client.screen == null && !shouldShowInGameBar(client)) {
+            return false;
+        }
+
+        if (draggingTabId >= 0
+            && GLFW.glfwGetMouseButton(client.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
+            resetDrag();
         }
 
         List<TabContext> contexts = TabManager.contexts();
@@ -144,10 +187,19 @@ public final class TabBar {
                 continue;
             }
 
+            if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+                TabManager.togglePinned(slot.id());
+                return true;
+            }
             if (mouseX >= layout.closeX(slot)) {
+                resetDrag();
                 TabManager.closeTab(slot.id());
             } else {
                 TabManager.switchTo(slot.id());
+                draggingTabId = slot.id();
+                dragStartX = mouseX;
+                dragStartY = mouseY;
+                dragStarted = false;
             }
             return true;
         }
@@ -172,7 +224,21 @@ public final class TabBar {
         List<TabSlot> slots = new ArrayList<>(count);
         int x = LEFT_MARGIN;
         for (TabContext context : contexts) {
-            slots.add(new TabSlot(context.id(), context.title(), x, tabWidth, context.id() == TabManager.activeId()));
+            String pingLabel = "";
+            if (context.serverData != null && context.serverData.ip != null && !context.serverData.ip.isBlank()) {
+                pingLabel = context.serverData.status != null && context.serverData.ping >= 0
+                    ? context.serverData.ping + "ms"
+                    : "—";
+            }
+            slots.add(new TabSlot(
+                context.id(),
+                context.title(),
+                x,
+                tabWidth,
+                context.id() == TabManager.activeId(),
+                context.pinned,
+                pingLabel
+            ));
             x += tabWidth + GAP;
         }
 
@@ -181,6 +247,92 @@ public final class TabBar {
         int mouseX = (int) (client.mouseHandler.xpos() * client.getWindow().getGuiScaledWidth() / client.getWindow().getScreenWidth());
         int mouseY = (int) (client.mouseHandler.ypos() * client.getWindow().getGuiScaledHeight() / client.getWindow().getScreenHeight());
         return new Layout(LEFT_MARGIN, right, plusX, slots, mouseX, mouseY);
+    }
+
+    public static void handleMouseMove(Minecraft client, double rawMouseX, double rawMouseY) {
+        if (client == null || draggingTabId < 0) {
+            return;
+        }
+
+        long window = client.getWindow().getWindow();
+        if (GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
+            resetDrag();
+            return;
+        }
+
+        double mouseX = rawMouseX * client.getWindow().getGuiScaledWidth() / client.getWindow().getScreenWidth();
+        double mouseY = rawMouseY * client.getWindow().getGuiScaledHeight() / client.getWindow().getScreenHeight();
+        if (!dragStarted && Math.hypot(mouseX - dragStartX, mouseY - dragStartY) >= 4.0) {
+            dragStarted = true;
+        }
+        if (!dragStarted || mouseY < BAR_TOP || mouseY >= BAR_TOP + BAR_HEIGHT) {
+            return;
+        }
+
+        List<TabContext> contexts = TabManager.contexts();
+        if (contexts.size() < 2) {
+            return;
+        }
+        Layout layout = layout(client, contexts);
+        TabSlot target = null;
+        for (TabSlot slot : layout.tabs()) {
+            if (mouseX >= slot.x() && mouseX < slot.x() + slot.width()) {
+                target = slot;
+                break;
+            }
+        }
+        if (target == null || target.id() == draggingTabId) {
+            return;
+        }
+
+        int targetIndex = -1;
+        for (int i = 0; i < contexts.size(); i++) {
+            if (contexts.get(i).id() == target.id()) {
+                targetIndex = i;
+                break;
+            }
+        }
+        if (targetIndex >= 0) {
+            if (mouseX >= target.x() + target.width() / 2.0) {
+                targetIndex++;
+            }
+            TabManager.moveTab(draggingTabId, targetIndex);
+        }
+    }
+
+    public static void handleMouseRelease() {
+        resetDrag();
+    }
+
+    public static boolean isDragging() {
+        return dragStarted;
+    }
+
+    private static void resetDrag() {
+        draggingTabId = -1;
+        dragStartX = 0;
+        dragStartY = 0;
+        dragStarted = false;
+    }
+
+    private static boolean shouldShowInGameBar(Minecraft client) {
+        String mode = TabbyConfig.inGameBarMode();
+        return switch (mode) {
+            case "always" -> true;
+            case "hover_or_alt" -> {
+                if (dragStarted) {
+                    yield true;
+                }
+                long window = client.getWindow().getWindow();
+                boolean altDown = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
+                    || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
+                double mouseY = client.mouseHandler.ypos()
+                    * (double) client.getWindow().getGuiScaledHeight()
+                    / (double) client.getWindow().getScreenHeight();
+                yield altDown || mouseY <= BAR_TOP + BAR_HEIGHT + 8;
+            }
+            default -> false;
+        };
     }
 
     static int stripCenterY() {
@@ -217,7 +369,7 @@ public final class TabBar {
         return candidate.isEmpty() ? ellipsis : candidate + ellipsis;
     }
 
-    private record TabSlot(int id, String title, int x, int width, boolean active) {
+    private record TabSlot(int id, String title, int x, int width, boolean active, boolean pinned, String pingLabel) {
     }
 
     private record Layout(int left, int right, int plusX, List<TabSlot> tabs, int mouseX, int mouseY) {
