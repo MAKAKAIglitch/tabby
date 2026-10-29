@@ -31,11 +31,21 @@ public abstract class MinecraftMixin {
 
     @Inject(
         method = "setLevel(Lnet/minecraft/client/multiplayer/ClientLevel;Lnet/minecraft/client/gui/screens/ReceivingLevelScreen$Reason;)V",
+        at = @At("HEAD")
+    )
+    private void tabby$beginWorldTransition(ClientLevel level, ReceivingLevelScreen.Reason reason, CallbackInfo ci) {
+        if (level != null) {
+            TabManager.beginClientLevelTransition(level);
+        }
+    }
+
+    @Inject(
+        method = "setLevel(Lnet/minecraft/client/multiplayer/ClientLevel;Lnet/minecraft/client/gui/screens/ReceivingLevelScreen$Reason;)V",
         at = @At("RETURN")
     )
     private void tabby$completeWorldTransition(ClientLevel level, ReceivingLevelScreen.Reason reason, CallbackInfo ci) {
         if (level != null) {
-            TabManager.onClientLevelInstalled();
+            TabManager.onClientLevelInstalled(level);
         }
     }
 

@@ -140,7 +140,10 @@ public final class TabContext {
         accessor.tabby$setPendingConnection(this.pendingConnection);
         accessor.tabby$setLocalServer(this.localServer);
         if (applyScreen) {
-            client.screen = this.screen;
+            // ScreenEvents listeners (Fabric API) must see the normal setScreen lifecycle.
+            // Direct field assignment leaves hidden-tab screens uninitialized and can crash
+            // when Minecraft ticks a ReceivingLevelScreen during a nested world transition.
+            client.setScreen(this.screen);
         }
     }
 

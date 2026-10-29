@@ -1,6 +1,7 @@
 package dev.tabby.tab;
 
 import dev.tabby.mixin.MinecraftAccessor;
+import dev.tabby.mixin.ClientLevelAccessor;
 import dev.tabby.mixin.LevelRendererAccessor;
 import dev.tabby.mixin.ParticleEngineAccessor;
 import net.minecraft.client.KeyMapping;
@@ -28,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +44,7 @@ public final class TabManager {
     private static final Map<Connection, Integer> CONNECTION_OWNERS = new IdentityHashMap<>();
     private static final Map<PacketListener, Integer> LISTENER_OWNERS = new IdentityHashMap<>();
     private static final ThreadLocal<Integer> EXECUTION_CONTEXT = new ThreadLocal<>();
+    private static final ThreadLocal<ArrayDeque<Integer>> CLIENT_LEVEL_TRANSITIONS = ThreadLocal.withInitial(ArrayDeque::new);
     private static final boolean SMOKE_TEST_ENABLED = "1".equals(System.getenv("TABBY_SMOKE_TEST"));
 
     private static Minecraft client;
@@ -82,6 +85,11 @@ public final class TabManager {
     }
 
     private static void onClientTick(Minecraft minecraft) {
+        if (isClientLevelTransitioning()) {
+            LOGGER.debug("Skipping Tabby maintenance during nested client-level transition");
+            return;
+        }
+
         // Vanilla may run a nested client tick while a packet handler calls setLevel().
         // That packet handler runs under runIn(tabId), so activeId still identifies the
         // visible tab, not the context temporarily installed for the packet. Running the
@@ -195,7 +203,9 @@ public final class TabManager {
     }
 
     public static void captureCurrentState() {
-        if (client == null) {
+        if (client == null || isClientLevelTransitioning()) {
+            // Minecraft.setLevel() calls a nested tick while the new level is being
+            // installed. Do not capture the intentionally transient null/stale globals.
             return;
         }
 
@@ -243,19 +253,80 @@ public final class TabManager {
         LOGGER.info("Tabby: starting world transition in tab {} to '{}'", context.id(), worldId);
     }
 
-    public static void onClientLevelInstalled() {
-        if (client == null || client.level == null) {
+    public static void beginClientLevelTransition(ClientLevel incomingLevel) {
+        if (client == null || incomingLevel == null) {
             return;
         }
 
-        TabContext context = TABS.get(currentContextId());
-        if (context == null || !context.worldTransitioning) {
+        int ownerId = currentContextId();
+        ClientPacketListener incomingListener =
+            ((ClientLevelAccessor) incomingLevel).tabby$getConnection();
+        int listenerOwnerId = ownerIdFor(incomingListener);
+        if (listenerOwnerId >= 0) {
+            ownerId = listenerOwnerId;
+        }
+
+        ArrayDeque<Integer> transitions = CLIENT_LEVEL_TRANSITIONS.get();
+        transitions.push(ownerId);
+        TabContext context = TABS.get(ownerId);
+        if (context != null) {
+            context.worldTransitioning = true;
+            context.worldTransitionTicks = 0;
+        }
+        LOGGER.debug("Beginning level installation for tab {}", ownerId);
+    }
+
+    public static boolean isClientLevelTransitioning() {
+        return !CLIENT_LEVEL_TRANSITIONS.get().isEmpty();
+    }
+
+    public static void onClientLevelInstalled(ClientLevel installedLevel) {
+        if (client == null) {
             return;
         }
 
-        context.worldTransitioning = false;
-        context.worldTransitionTicks = 0;
-        context.captureFrom(client);
+        ArrayDeque<Integer> transitions = CLIENT_LEVEL_TRANSITIONS.get();
+        int ownerId = transitions.isEmpty() ? currentContextId() : transitions.pop();
+        boolean sameTabStillTransitioning = transitions.contains(ownerId);
+        if (transitions.isEmpty()) {
+            CLIENT_LEVEL_TRANSITIONS.remove();
+        }
+
+        if (installedLevel == null) {
+            return;
+        }
+
+        ClientPacketListener listener =
+            ((ClientLevelAccessor) installedLevel).tabby$getConnection();
+        int listenerOwnerId = ownerIdFor(listener);
+        if (listenerOwnerId >= 0) {
+            ownerId = listenerOwnerId;
+        }
+
+        TabContext context = TABS.get(ownerId);
+        if (context == null) {
+            LOGGER.warn("Installed a ClientLevel for unknown tab {}; active tab is {}", ownerId, activeId);
+            return;
+        }
+
+        context.level = installedLevel;
+        context.player = client.player;
+        context.gameMode = client.gameMode;
+        context.levelRenderer = client.levelRenderer;
+        context.particleEngine = client.particleEngine;
+        context.gui = client.gui;
+        context.hitResult = client.hitResult;
+        context.crosshairPickEntity = client.crosshairPickEntity;
+        context.cameraEntity = client.cameraEntity;
+        context.localServer = ((MinecraftAccessor) client).tabby$isLocalServer();
+        context.clientConnection = listener;
+        context.networkConnection = listener.getConnection();
+        context.packetListener = listener;
+        context.serverData = listener.getServerData();
+        if (!sameTabStillTransitioning) {
+            context.worldTransitioning = false;
+            context.worldTransitionTicks = 0;
+        }
         LOGGER.info("Tabby: world transition completed in tab {}", context.id());
     }
 
@@ -770,7 +841,9 @@ public final class TabManager {
         Integer previousExecutionId = EXECUTION_CONTEXT.get();
         try {
             EXECUTION_CONTEXT.set(tabId);
-            target.applyTo(client, true);
+            // Never swap the global Screen reference while executing a background packet.
+            // Screen changes are intercepted by MinecraftMixin and stored on the owning tab.
+            target.applyTo(client, false);
             task.run();
         } catch (RuntimeException | Error exception) {
             LOGGER.debug("Packet task failed in tab {}", tabId, exception);
@@ -781,7 +854,7 @@ public final class TabManager {
             } finally {
                 try {
                     if (previous != null) {
-                        previous.applyTo(client, true);
+                        previous.applyTo(client, false);
                     }
                 } finally {
                     if (previousExecutionId == null) {
