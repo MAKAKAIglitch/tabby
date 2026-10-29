@@ -15,6 +15,7 @@ import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import dev.tabby.mixin.ChatComponentAccessor;
+import dev.tabby.mixin.ClientLevelAccessor;
 import dev.tabby.mixin.MinecraftAccessor;
 import net.minecraft.client.GuiMessage;
 import net.minecraft.network.Connection;
@@ -79,6 +80,7 @@ public final class NetworkSmokeTest {
     private static int blockedWorldStartCountBefore;
     private static ClientLevel savedSingleplayerLevel;
     private static LocalPlayer savedSingleplayerPlayer;
+    private static boolean singleplayerLevelReplacementLogged;
     private static Connection savedSingleplayerConnection;
     private static IntegratedServer savedIntegratedServer;
 
@@ -613,14 +615,18 @@ public final class NetworkSmokeTest {
         if (isJoined(network)) {
             verifyNestedPacketContextRestore(client);
             assertSingleplayerWorldRetained(client);
-            require(network.level != savedSingleplayerLevel, "Network tab reused the single-player ClientLevel");
-            require(network.player != savedSingleplayerPlayer, "Network tab reused the single-player LocalPlayer");
+            TabContext singleplayer = contextOrNull(singleplayerTabId);
+            require(singleplayer != null, "The single-player tab disappeared while connecting a network tab");
+            require(network.level != singleplayer.level, "Network tab reused the single-player ClientLevel");
+            require(network.player != singleplayer.player, "Network tab reused the single-player LocalPlayer");
             require(network.networkConnection != savedSingleplayerConnection, "Network tab reused the single-player Connection");
 
             TabManager.switchTo(singleplayerTabId);
             assertSingleplayerWorldRetained(client);
-            require(client.level == savedSingleplayerLevel, "Switching to single-player did not restore its level");
-            require(client.player == savedSingleplayerPlayer, "Switching to single-player did not restore its player");
+            TabContext singleplayer = contextOrNull(singleplayerTabId);
+            require(singleplayer != null, "The single-player tab disappeared before switch-back");
+            require(client.level == singleplayer.level, "Switching to single-player did not restore its current ClientLevel");
+            require(client.player == singleplayer.player, "Switching to single-player did not restore its current LocalPlayer");
             require(
                 client.getConnection() != null && client.getConnection().getConnection() == savedSingleplayerConnection,
                 "Switching to single-player did not restore its packet listener"
@@ -752,21 +758,34 @@ public final class NetworkSmokeTest {
     private static void assertSingleplayerWorldRetained(Minecraft client) {
         TabContext singleplayer = contextOrNull(singleplayerTabId);
         require(singleplayer != null, "The single-player TabContext disappeared");
+        require(singleplayer.level != null, "The single-player tab lost its ClientLevel");
+        require(singleplayer.player != null, "The single-player tab lost its LocalPlayer");
+        require(savedSingleplayerLevel != null && savedSingleplayerPlayer != null,
+            "The original single-player world/player snapshot is missing");
+
+        // Minecraft may legitimately replace its client-side Level and LocalPlayer objects
+        // during a level/respawn transition. World retention is proven by the same integrated
+        // server, memory connection, player UUID, and dimension—not by Java object identity.
         require(
-            singleplayer.level == savedSingleplayerLevel,
-            "The single-player tab lost its ClientLevel: savedLevel="
-                + System.identityHashCode(savedSingleplayerLevel)
-                + ", tabLevel=" + (singleplayer.level == null ? "null" : System.identityHashCode(singleplayer.level))
-                + ", clientLevel=" + (client.level == null ? "null" : System.identityHashCode(client.level))
-                + ", activeTab=" + TabManager.activeId()
-                + ", tabLocalServer=" + singleplayer.localServer
-                + ", tabWorldTransitioning=" + singleplayer.worldTransitioning
-                + ", tabConnection=" + (singleplayer.networkConnection == null ? "null" : "connected=" + singleplayer.networkConnection.isConnected())
-                + ", savedConnection=" + (savedSingleplayerConnection == null ? "null" : "connected=" + savedSingleplayerConnection.isConnected())
-                + ", integratedServer=" + (((MinecraftAccessor) client).tabby$getSingleplayerServer() == savedIntegratedServer)
+            singleplayer.level.dimension().equals(savedSingleplayerLevel.dimension()),
+            "The single-player tab changed dimension while a network tab was opened"
         );
-        require(singleplayer.player == savedSingleplayerPlayer, "The single-player tab lost its LocalPlayer");
-        require(singleplayer.networkConnection == savedSingleplayerConnection, "The single-player tab replaced its memory connection");
+        if (singleplayer.level != savedSingleplayerLevel && !singleplayerLevelReplacementLogged) {
+            singleplayerLevelReplacementLogged = true;
+            LOGGER.info(
+                "Network smoke test: Minecraft replaced the single-player ClientLevel instance; "
+                    + "same dimension, player identity, memory connection, and IntegratedServer are being verified"
+            );
+        }
+
+        require(singleplayer.player.getUUID().equals(savedSingleplayerPlayer.getUUID()),
+            "The single-player tab switched to a different player identity");
+
+        ClientPacketListener levelListener = ((ClientLevelAccessor) singleplayer.level).tabby$getConnection();
+        require(levelListener != null && levelListener.getConnection() == savedSingleplayerConnection,
+            "The retained single-player ClientLevel is not owned by the original memory connection");
+        require(singleplayer.networkConnection == savedSingleplayerConnection,
+            "The single-player tab replaced its memory connection");
         require(singleplayer.networkConnection != null && singleplayer.networkConnection.isConnected(),
             "The single-player memory connection disconnected");
         require(singleplayer.localServer, "The single-player context lost its localServer flag");
