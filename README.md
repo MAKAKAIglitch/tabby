@@ -6,7 +6,9 @@ Tabby is a client-side Fabric mod project for Minecraft Java Edition 1.21.4. Its
 
 **Stage 0 accepted.** The minimal client builds and loads in a Minecraft 1.21.4 startup smoke test.
 
-**Stages 1–2 verified by CI.** One client connected to two local Minecraft 1.21.4 servers, verified separate world/player/connection objects, and kept both connections alive for 2400 ticks while switching tabs. CI also checks tab clicks, plus/close controls, and Ctrl+T, Ctrl+W, Ctrl+Tab, and Ctrl+1 through the real input path. Stage 3 now adds duplicate-connection interception before vanilla disconnects the active tab, plus disconnect cleanup and final-tab lifecycle tests. Fabric API 0.119.4 does not support initializing a second particle factory registry, so the prototype shares the particle engine and suppresses particle mutations from inactive tabs. Full chat/inventory/entity isolation still needs deeper tests.
+**Stages 1–3 verified by CI.** One client connected to two local Minecraft 1.21.4 servers, verified separate world/player/connection objects, and kept both connections alive for at least 2400 ticks while switching tabs. CI exercises tab clicks and shortcuts, duplicate-connection protection, closing a live tab, and returning to a title screen after the final tab closes. Fabric API 0.119.4 does not support initializing a second particle factory registry, so the prototype shares the particle engine and suppresses particle mutations from inactive tabs. Full chat/inventory/entity isolation still needs deeper tests.
+
+**Stage 4 stability checks partly verified.** CI now checks key release after a switch, the JSON-configured background-tab limit (default 4), the single-player guard predicate, clean connection cleanup, and client shutdown. Input/audio/render cleanup and the integrated-server preservation hooks are implemented. A live single-player world has not yet been exercised end-to-end while switching to and connecting from a network tab, so Stage 4 remains open.
 
 ## Requirements
 
