@@ -316,20 +316,13 @@ public final class TabbyConfigScreen extends Screen {
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 18, 0xFFFFFF);
         graphics.drawCenteredString(
             this.font,
-            "Tab bar is shown only on the title and pause screens.",
+            "Tabs appear on title/pause screens; Ctrl+1..9 selects by position.",
             this.width / 2,
             34,
             0xC4D5E2
         );
-        graphics.drawCenteredString(
-            this.font,
-            "Ctrl+1 through Ctrl+9 select tabs by position.",
-            this.width / 2,
-            this.height - 45,
-            0xC4D5E2
-        );
         if (this.statusMessage != null) {
-            graphics.drawCenteredString(this.font, this.statusMessage, this.width / 2, this.height - 60, 0xE8D28B);
+            graphics.drawCenteredString(this.font, this.statusMessage, this.width / 2, this.height - 40, 0xE8D28B);
         }
     }
 

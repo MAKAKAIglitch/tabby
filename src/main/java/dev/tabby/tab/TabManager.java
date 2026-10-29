@@ -91,9 +91,15 @@ public final class TabManager {
 
         tickRestoredServerAddresses(minecraft);
         tickBackgroundConnections();
-        if (++memoryRefreshTicks >= 20) {
+        if (TabbyConfig.showHudInfo()) {
+            if (++memoryRefreshTicks >= 20) {
+                memoryRefreshTicks = 0;
+                TabMemoryUsage.refresh(List.copyOf(TABS.values()));
+            }
+        } else {
+            // The diagnostic HUD is off by default; skip periodic chunk/entity counting
+            // until the user explicitly enables the plaque in Mod Menu.
             memoryRefreshTicks = 0;
-            TabMemoryUsage.refresh(List.copyOf(TABS.values()));
         }
     }
 
