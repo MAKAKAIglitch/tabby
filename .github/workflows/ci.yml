@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           ./gradlew --version | tee gradle-version.txt
-          grep -Eq 'JVM: 21([.]|[[:space:]])|Launcher JVM: 21([.]|[[:space:]])' gradle-version.txt
+          grep -Eq 'JVM:[[:space:]]+21([.]|[[:space:]])' gradle-version.txt
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
