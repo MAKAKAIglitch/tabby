@@ -40,6 +40,7 @@ public final class TabContext {
     public Connection replacingConnection;
     public String playerName;
     public boolean connecting;
+    public boolean localServer;
 
     public LevelRenderer levelRenderer;
     public ParticleEngine particleEngine;
@@ -73,6 +74,7 @@ public final class TabContext {
         context.replacingConnection = null;
         context.playerName = null;
         context.connecting = false;
+        context.localServer = false;
         context.levelRenderer = new LevelRenderer(
             client,
             client.entityRenderDispatcher,
@@ -101,7 +103,9 @@ public final class TabContext {
         if (TabManager.shouldCaptureScreenFromClient()) {
             this.screen = client.screen;
         }
-        this.pendingConnection = ((MinecraftAccessor) client).tabby$getPendingConnection();
+        MinecraftAccessor accessor = (MinecraftAccessor) client;
+        this.pendingConnection = accessor.tabby$getPendingConnection();
+        this.localServer = accessor.tabby$isLocalServer();
 
         ClientPacketListener activeConnection = client.getConnection();
         if (activeConnection != null) {
@@ -127,7 +131,9 @@ public final class TabContext {
         client.hitResult = this.hitResult;
         client.crosshairPickEntity = this.crosshairPickEntity;
         client.cameraEntity = this.cameraEntity;
-        ((MinecraftAccessor) client).tabby$setPendingConnection(this.pendingConnection);
+        MinecraftAccessor accessor = (MinecraftAccessor) client;
+        accessor.tabby$setPendingConnection(this.pendingConnection);
+        accessor.tabby$setLocalServer(this.localServer);
         if (applyScreen) {
             client.screen = this.screen;
         }

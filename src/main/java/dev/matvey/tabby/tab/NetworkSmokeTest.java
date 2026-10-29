@@ -3,6 +3,8 @@ package dev.matvey.tabby.tab;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.KeyMapping;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -11,6 +13,7 @@ import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import dev.matvey.tabby.mixin.MinecraftAccessor;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.lwjgl.glfw.GLFW;
@@ -164,6 +167,47 @@ public final class NetworkSmokeTest {
         validateConnections(client);
         verifyDuplicateConnectionGuard(client);
         LOGGER.info("Network smoke test: tab strip interactions, keyboard shortcuts, and duplicate-connection guard passed");
+    }
+
+    private static void verifyStabilityControls(Minecraft client) {
+        KeyMapping heldKey = new KeyMapping(
+            "key.tabby.smoke_held_key",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_F11,
+            "category.tabby"
+        );
+        heldKey.setDown(true);
+        TabManager.switchTo(0);
+        require(!heldKey.isDown(), "Switching tabs did not release held key mappings");
+        TabManager.switchTo(1);
+        validateConnections(client);
+
+        TabContext first = context(0);
+        boolean previousLocalFlag = first.localServer;
+        first.localServer = true;
+        try {
+            require(TabManager.shouldBlockSingleplayerWorldStart(), "A second single-player world was not blocked when one exists in another tab");
+        } finally {
+            first.localServer = previousLocalFlag;
+        }
+
+        int maxBackgroundTabs = TabbyConfig.maxBackgroundTabs();
+        while (TabManager.contexts().size() - 1 < maxBackgroundTabs) {
+            TabManager.createTab();
+        }
+        int atLimit = TabManager.contexts().size();
+        require(atLimit == maxBackgroundTabs + 1, "Configured background-tab limit produced the wrong total tab count");
+        TabManager.createTab();
+        require(TabManager.contexts().size() == atLimit, "The configured background-tab limit was not enforced");
+
+        for (TabContext context : List.copyOf(TabManager.contexts())) {
+            if (context.id() != 0 && context.id() != 1) {
+                TabManager.closeTab(context.id());
+            }
+        }
+        TabManager.switchTo(1);
+        validateConnections(client);
+        LOGGER.info("Network smoke test: key release, background-tab limit, and single-player guard passed");
     }
 
     private static void verifyDuplicateConnectionGuard(Minecraft client) {

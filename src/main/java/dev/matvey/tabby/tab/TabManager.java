@@ -1,6 +1,7 @@
 package dev.matvey.tabby.tab;
 
 import dev.matvey.tabby.mixin.MinecraftAccessor;
+import net.minecraft.client.KeyMapping;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.Minecraft;
@@ -8,6 +9,8 @@ import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
@@ -33,7 +36,6 @@ public final class TabManager {
     private static final Map<Connection, Integer> CONNECTION_OWNERS = new IdentityHashMap<>();
     private static final Map<PacketListener, Integer> LISTENER_OWNERS = new IdentityHashMap<>();
     private static final ThreadLocal<Integer> EXECUTION_CONTEXT = new ThreadLocal<>();
-    private static final int MAX_PROTOTYPE_TABS = 4;
     private static final boolean SMOKE_TEST_ENABLED = "1".equals(System.getenv("TABBY_SMOKE_TEST"));
 
     private static Minecraft client;
@@ -50,6 +52,7 @@ public final class TabManager {
         }
 
         client = minecraft;
+        TabbyConfig.load();
         TabContext initial = TabContext.capture(client, nextId++, "Main Menu");
         TABS.put(initial.id(), initial);
         activeId = initial.id();
@@ -140,8 +143,17 @@ public final class TabManager {
     }
 
     public static void createTab() {
-        if (client == null || TABS.size() >= MAX_PROTOTYPE_TABS) {
-            LOGGER.debug("Test tab creation ignored (not initialized or prototype limit reached)");
+        if (client == null) {
+            return;
+        }
+        if (!TABS.isEmpty() && TABS.size() - 1 >= TabbyConfig.maxBackgroundTabs()) {
+            SystemToast.add(
+                client.getToastManager(),
+                SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
+                Component.literal("Tabby"),
+                Component.literal("Background tab limit reached. Close a tab first.")
+            );
+            LOGGER.debug("Tab creation rejected: background-tab limit {} reached", TabbyConfig.maxBackgroundTabs());
             return;
         }
 
@@ -177,7 +189,7 @@ public final class TabManager {
         if (closing == null) {
             return;
         }
-        disposeTab(closing);
+        disposeTab(closing, true);
 
         if (TABS.isEmpty()) {
             TabContext menu = TabContext.createEmpty(client, nextId++);
@@ -192,7 +204,7 @@ public final class TabManager {
         }
     }
 
-    private static void disposeTab(TabContext context) {
+    private static void disposeTab(TabContext context, boolean closeRenderer) {
         int id = context.id();
 
         synchronized (CONNECTION_OWNERS) {
@@ -201,6 +213,8 @@ public final class TabManager {
         synchronized (LISTENER_OWNERS) {
             LISTENER_OWNERS.entrySet().removeIf(entry -> entry.getValue() == id);
         }
+
+        stopIntegratedServerForTab(context);
 
         Connection pending = context.pendingConnection;
         Connection connection = context.networkConnection;
@@ -213,9 +227,98 @@ public final class TabManager {
         if (context.level != null) {
             context.level.disconnect();
         }
-        if (context.levelRenderer != null) {
+        if (closeRenderer && context.levelRenderer != null) {
             context.levelRenderer.close();
         }
+    }
+
+    private static void stopIntegratedServerForTab(TabContext context) {
+        if (client == null || !context.localServer) {
+            return;
+        }
+
+        boolean anotherTabOwnsLocalWorld = TABS.values().stream()
+            .anyMatch(other -> other.id() != context.id() && other.localServer);
+        if (anotherTabOwnsLocalWorld) {
+            return;
+        }
+
+        MinecraftAccessor accessor = (MinecraftAccessor) client;
+        IntegratedServer server = accessor.tabby$getSingleplayerServer();
+        if (server != null) {
+            accessor.tabby$setSingleplayerServer(null);
+            server.halt(false);
+            LOGGER.debug("Stopped integrated server owned by tab {}", context.id());
+        }
+        accessor.tabby$setLocalServer(false);
+        context.localServer = false;
+    }
+
+    public static void shutdown() {
+        Minecraft shuttingDownClient = client;
+        if (shuttingDownClient == null) {
+            return;
+        }
+
+        LOGGER.debug("Shutting down Tabby; closing {} tab contexts", TABS.size());
+        KeyMapping.releaseAll();
+        shuttingDownClient.getSoundManager().stop();
+
+        for (TabContext context : List.copyOf(TABS.values())) {
+            disposeTab(context, context.id() != activeId);
+        }
+
+        TABS.clear();
+        synchronized (CONNECTION_OWNERS) {
+            CONNECTION_OWNERS.clear();
+        }
+        synchronized (LISTENER_OWNERS) {
+            LISTENER_OWNERS.clear();
+        }
+        EXECUTION_CONTEXT.remove();
+        activeId = -1;
+        client = null;
+    }
+
+    public static boolean hasInactiveSingleplayerWorld() {
+        if (client == null) {
+            return false;
+        }
+        return TABS.values().stream().anyMatch(context ->
+            context.id() != activeId
+                && context.localServer
+                && (context.level != null
+                    || context.pendingConnection != null
+                    || context.connecting
+                    || context.networkConnection != null
+                        && (context.networkConnection.isConnected() || context.networkConnection.isConnecting()))
+        );
+    }
+
+    public static boolean shouldBlockSingleplayerWorldStart() {
+        return hasInactiveSingleplayerWorld();
+    }
+
+    public static boolean shouldPreserveIntegratedServerDuringDisconnect() {
+        if (client == null || !hasInactiveSingleplayerWorld()) {
+            return false;
+        }
+        TabContext active = TABS.get(activeId);
+        return active != null && !active.localServer
+            && ((MinecraftAccessor) client).tabby$getSingleplayerServer() != null;
+    }
+
+    public static void showSingleplayerWorldBlockedNotice() {
+        if (client == null) {
+            return;
+        }
+        SystemToast.add(
+            client.getToastManager(),
+            SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
+            Component.literal("Tabby"),
+            Component.literal("A single-player world is already open in another tab.")
+        );
+        client.setScreen(new TitleScreen());
     }
 
     public static boolean handleShortcut(int key, int modifiers) {
@@ -271,11 +374,18 @@ public final class TabManager {
         }
 
         try {
+            KeyMapping.releaseAll();
+            client.getSoundManager().stop();
+            client.mouseHandler.setIgnoreFirstMove();
+
             target.applyTo(client, false);
             activeId = tabId;
+            // LevelRenderer.setLevel() invokes allChanged(), rebuilding world chunks for this tab.
             target.levelRenderer.setLevel(target.level);
             target.particleEngine.setLevel(target.level);
             client.setScreen(target.screen);
+            KeyMapping.releaseAll();
+            client.mouseHandler.setIgnoreFirstMove();
             target.captureFrom(client);
             LOGGER.debug("Switched active tab to {} ({})", target.id(), target.title());
         } catch (RuntimeException | Error exception) {
@@ -284,6 +394,8 @@ public final class TabManager {
                 activeId = previous.id();
                 previous.applyTo(client, false);
                 client.setScreen(previous.screen);
+                KeyMapping.releaseAll();
+                client.mouseHandler.setIgnoreFirstMove();
             }
             throw exception;
         }
@@ -531,6 +643,9 @@ public final class TabManager {
 
             if (replacingOldConnection) {
                 context.replacingConnection = null;
+                if (connection.isMemoryConnection()) {
+                    context.localServer = false;
+                }
                 context.level = null;
                 context.player = null;
                 context.gameMode = null;
@@ -549,6 +664,12 @@ public final class TabManager {
             context.level = null;
             context.player = null;
             context.gameMode = null;
+            if (connection.isMemoryConnection()) {
+                context.localServer = false;
+                if (client != null && context.id() == activeId) {
+                    ((MinecraftAccessor) client).tabby$setLocalServer(false);
+                }
+            }
             if (context.levelRenderer != null) {
                 context.levelRenderer.setLevel(null);
             }
@@ -612,6 +733,7 @@ public final class TabManager {
             }
 
             if (listener instanceof ClientCommonPacketListenerImpl) {
+                context.localServer = connection.isMemoryConnection();
                 context.networkConnection = connection;
                 if (listener instanceof TickablePacketListener tickable) {
                     context.packetListener = tickable;
