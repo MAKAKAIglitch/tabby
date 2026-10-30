@@ -134,19 +134,33 @@ public final class TabContext {
         }
         MinecraftAccessor accessor = (MinecraftAccessor) client;
         this.pendingConnection = accessor.tabby$getPendingConnection();
-        this.localServer = accessor.tabby$isLocalServer();
 
         ClientPacketListener activeConnection = client.getConnection();
         if (activeConnection != null) {
             this.clientConnection = activeConnection;
             this.serverData = activeConnection.getServerData();
             this.networkConnection = activeConnection.getConnection();
+            this.localServer = activeConnection.getConnection().isMemoryConnection();
             this.packetListener = activeConnection;
-        } else if (!this.connecting
-            && (this.networkConnection == null || !this.networkConnection.isConnected())) {
-            this.clientConnection = null;
-            this.networkConnection = null;
-            this.packetListener = null;
+        } else {
+            Connection retainedConnection = this.networkConnection != null
+                ? this.networkConnection
+                : this.pendingConnection;
+            if (retainedConnection != null && retainedConnection.isMemoryConnection()
+                && (retainedConnection.isConnected() || retainedConnection.isConnecting())) {
+                // The single-player connection is the reliable owner signal. Minecraft's
+                // global isLocalServer flag can be cleared by a different active tab.
+                this.localServer = true;
+            } else {
+                this.localServer = accessor.tabby$isLocalServer();
+            }
+
+            if (!this.connecting
+                && (this.networkConnection == null || !this.networkConnection.isConnected())) {
+                this.clientConnection = null;
+                this.networkConnection = null;
+                this.packetListener = null;
+            }
         }
     }
 

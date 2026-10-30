@@ -11,12 +11,14 @@ import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import dev.tabby.mixin.ChatComponentAccessor;
 import dev.tabby.mixin.ClientLevelAccessor;
 import dev.tabby.mixin.MinecraftAccessor;
+import dev.tabby.mixin.PauseScreenAccessor;
 import net.minecraft.client.GuiMessage;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
@@ -691,6 +693,38 @@ public final class NetworkSmokeTest {
             require(contextOrNull(secondWorldGuardTabId) == null, "Closing the guard-test tab did not remove its context");
             require(isJoined(network), "Closing the guard-test tab damaged the network connection");
 
+            // Exercise the exact Disconnect button used by PauseScreen, not a synthetic
+            // closeTab(). This must disconnect only the selected network tab while the
+            // hidden integrated server remains alive. A stale localServer flag previously
+            // allowed vanilla to wait forever for this still-running server to shut down.
+            client.setScreen(new PauseScreen(true));
+            Button disconnectButton = ((PauseScreenAccessor) client.screen).tabby$getDisconnectButton();
+            require(disconnectButton != null && disconnectButton.active,
+                "PauseScreen did not initialize its Disconnect button");
+            LOGGER.info(
+                "Network smoke test: pressing the real PauseScreen Disconnect button while an integrated server is retained in another tab"
+            );
+            disconnectButton.onPress();
+            LOGGER.info("Network smoke test: PauseScreen Disconnect button returned");
+            require(client.level == null && client.player == null && client.getConnection() == null,
+                "Disconnecting the network tab left a world/player/connection installed globally");
+            require(!networkConnection.isConnected(),
+                "PauseScreen Disconnect did not close the selected network connection");
+            require(network.level == null && network.player == null && network.gameMode == null,
+                "PauseScreen Disconnect did not clear the selected network tab's world state");
+            require(contextOrNull(networkAfterSingleplayerTabId) != null,
+                "Disconnecting from PauseScreen unexpectedly removed the tab");
+            assertSingleplayerWorldRetained(client);
+
+            LOGGER.info("Network smoke test: active network disconnect preserved the inactive IntegratedServer");
+            TabManager.switchTo(singleplayerTabId);
+            assertSingleplayerWorldRetained(client);
+
+            TabManager.closeTab(networkAfterSingleplayerTabId);
+            require(contextOrNull(networkAfterSingleplayerTabId) == null,
+                "Closing the disconnected network tab did not remove its context");
+            assertSingleplayerWorldRetained(client);
+
             TabManager.closeTab(singleplayerTabId);
             require(contextOrNull(singleplayerTabId) == null, "Closing the single-player tab did not remove its context");
             require(savedSingleplayerConnection != null && !savedSingleplayerConnection.isConnected(),
@@ -699,14 +733,9 @@ public final class NetworkSmokeTest {
                 "Closing the single-player tab left its IntegratedServer registered");
             require(savedIntegratedServer != null && !savedIntegratedServer.isRunning(),
                 "Closing the single-player tab did not stop its IntegratedServer");
-            require(isJoined(network) && network.networkConnection == networkConnection,
-                "Closing the single-player tab damaged the network tab");
-
-            TabManager.closeTab(networkAfterSingleplayerTabId);
-            require(contextOrNull(networkAfterSingleplayerTabId) == null, "Closing the final network tab did not remove its context");
             require(TabManager.contexts().size() == 1, "Final cleanup did not leave exactly one menu context");
             require(client.screen instanceof TitleScreen, "Final cleanup did not return to the title screen");
-            LOGGER.info("Tabby single-player integration smoke test passed: the integrated world survived a network-tab connection and a second-world launch was blocked.");
+            LOGGER.info("Tabby single-player integration smoke test passed: network disconnect returned, the hidden IntegratedServer survived, second-world launch was blocked, and cleanup completed.");
             phase = Phase.COMPLETE;
             client.stop();
         } else if (phaseTicks > SINGLEPLAYER_TIMEOUT_TICKS) {

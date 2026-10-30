@@ -60,6 +60,15 @@ public abstract class MinecraftMixin {
         }
     }
 
+    @Inject(
+        method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V",
+        at = @At("HEAD"),
+        order = 0
+    )
+    private void tabby$beginVanillaDisconnect(Screen screen, boolean keepResourcePacks, CallbackInfo ci) {
+        TabManager.beginClientDisconnect(screen);
+    }
+
     @Inject(method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V", at = @At("HEAD"))
     private void tabby$preserveOtherTabIntegratedServer(Screen screen, boolean keepResourcePacks, CallbackInfo ci) {
         if (this.tabby$preservedIntegratedServer != null || !TabManager.shouldPreserveIntegratedServerDuringDisconnect()) {
@@ -84,6 +93,15 @@ public abstract class MinecraftMixin {
         ((MinecraftAccessor) this).tabby$setSingleplayerServer(this.tabby$preservedIntegratedServer);
         this.tabby$preservedIntegratedServer = null;
         LOGGER.debug("Restored the inactive tab's integrated server after disconnect cleanup");
+    }
+
+    @Inject(
+        method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V",
+        at = @At("RETURN"),
+        order = 2000
+    )
+    private void tabby$finishVanillaDisconnect(Screen screen, boolean keepResourcePacks, CallbackInfo ci) {
+        TabManager.endClientDisconnect();
     }
 
     @Inject(

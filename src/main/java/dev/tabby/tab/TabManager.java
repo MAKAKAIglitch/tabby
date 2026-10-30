@@ -46,6 +46,7 @@ public final class TabManager {
     private static final ThreadLocal<Integer> EXECUTION_CONTEXT = new ThreadLocal<>();
     private static final ThreadLocal<ArrayDeque<Integer>> CLIENT_LEVEL_TRANSITIONS = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<ArrayDeque<Integer>> CLIENT_LOGIN_HANDLERS = ThreadLocal.withInitial(ArrayDeque::new);
+    private static final ThreadLocal<Integer> CLIENT_DISCONNECT_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final boolean SMOKE_TEST_ENABLED = "1".equals(System.getenv("TABBY_SMOKE_TEST"));
 
     private static Minecraft client;
@@ -86,6 +87,9 @@ public final class TabManager {
     }
 
     private static void onClientTick(Minecraft minecraft) {
+        if (isClientDisconnectInProgress()) {
+            return;
+        }
         if (isClientLevelTransitioning() || isClientLoginInProgress()) {
             LOGGER.debug("Skipping Tabby maintenance while a client login/world transition is in progress");
             return;
@@ -204,7 +208,7 @@ public final class TabManager {
     }
 
     public static void captureCurrentState() {
-        if (client == null || isClientLevelTransitioning() || isClientLoginInProgress()) {
+        if (client == null || isClientDisconnectInProgress() || isClientLevelTransitioning() || isClientLoginInProgress()) {
             // Minecraft.setLevel() and ClientPacketListener.handleLogin() contain nested
             // screen ticks. Do not capture intentionally transient globals until the full
             // login packet handler has created and installed its player.
@@ -238,6 +242,71 @@ public final class TabManager {
         if (context != null) {
             context.captureFrom(client);
         }
+    }
+
+    /**
+     * Brackets vanilla's synchronous disconnect cleanup. Vanilla may run nested
+     * screen/tick work while closing a listener; Tabby must not capture half-cleared
+     * globals or tick another connection until the disconnect has fully returned.
+     */
+    public static void beginClientDisconnect(Screen destination) {
+        if (client == null) {
+            return;
+        }
+
+        int depth = CLIENT_DISCONNECT_DEPTH.get();
+        CLIENT_DISCONNECT_DEPTH.set(depth + 1);
+        if (depth == 0) {
+            TabContext context = TABS.get(currentContextId());
+            LOGGER.info(
+                "Tabby: beginning vanilla disconnect for tab {} (destination={}, localServer={}, memoryConnection={}, inactiveSingleplayer={})",
+                context == null ? -1 : context.id(),
+                destination == null ? "null" : destination.getClass().getSimpleName(),
+                context != null && context.localServer,
+                isSingleplayerTab(context),
+                hasInactiveSingleplayerWorld()
+            );
+        }
+    }
+
+    public static void endClientDisconnect() {
+        int depth = CLIENT_DISCONNECT_DEPTH.get();
+        if (depth <= 0) {
+            CLIENT_DISCONNECT_DEPTH.remove();
+            return;
+        }
+        if (depth > 1) {
+            CLIENT_DISCONNECT_DEPTH.set(depth - 1);
+            return;
+        }
+
+        CLIENT_DISCONNECT_DEPTH.remove();
+        if (client == null) {
+            return;
+        }
+
+        TabContext context = TABS.get(currentContextId());
+        if (context != null) {
+            context.captureFrom(client);
+            context.worldTransitioning = false;
+            context.worldTransitionTicks = 0;
+            if (client.getConnection() == null
+                && (context.networkConnection == null || !context.networkConnection.isConnected())) {
+                context.connecting = false;
+            }
+            LOGGER.info(
+                "Tabby: vanilla disconnect returned for tab {} (level={}, player={}, connectionLive={}, localServer={})",
+                context.id(),
+                context.level != null,
+                context.player != null,
+                context.networkConnection != null && context.networkConnection.isConnected(),
+                context.localServer
+            );
+        }
+    }
+
+    public static boolean isClientDisconnectInProgress() {
+        return CLIENT_DISCONNECT_DEPTH.get() > 0;
     }
 
     public static void beginWorldTransition(String worldId) {
@@ -377,9 +446,9 @@ public final class TabManager {
         context.hitResult = client.hitResult;
         context.crosshairPickEntity = client.crosshairPickEntity;
         context.cameraEntity = client.cameraEntity;
-        context.localServer = ((MinecraftAccessor) client).tabby$isLocalServer();
         context.clientConnection = listener;
         context.networkConnection = listener.getConnection();
+        context.localServer = listener.getConnection().isMemoryConnection();
         context.packetListener = listener;
         context.serverData = listener.getServerData();
         if (!sameTabStillTransitioning) {
@@ -638,14 +707,47 @@ public final class TabManager {
         }
     }
 
+    private static boolean isSingleplayerTab(TabContext context) {
+        if (context == null) {
+            return false;
+        }
+        if (context.localServer) {
+            return true;
+        }
+
+        Connection connection = context.networkConnection;
+        if (connection == null && context.clientConnection != null) {
+            connection = context.clientConnection.getConnection();
+        }
+        if (connection == null) {
+            connection = context.pendingConnection;
+        }
+        return connection != null && connection.isMemoryConnection();
+    }
+
+    private static boolean hasSingleplayerState(TabContext context) {
+        return context != null && (
+            context.level != null
+                || context.player != null
+                || context.connecting
+                || context.pendingConnection != null
+                    && (context.pendingConnection.isConnected() || context.pendingConnection.isConnecting())
+                || context.networkConnection != null
+                    && (context.networkConnection.isConnected() || context.networkConnection.isConnecting())
+        );
+    }
+
     private static void stopIntegratedServerForTab(TabContext context) {
-        if (client == null || !context.localServer) {
+        if (client == null || !isSingleplayerTab(context)) {
             return;
         }
 
         boolean anotherTabOwnsLocalWorld = TABS.values().stream()
-            .anyMatch(other -> other.id() != context.id() && other.localServer);
+            .anyMatch(other -> other.id() != context.id()
+                && isSingleplayerTab(other)
+                && hasSingleplayerState(other));
         if (anotherTabOwnsLocalWorld) {
+            LOGGER.debug("Keeping integrated server alive while another single-player tab remains open");
             return;
         }
 
@@ -704,12 +806,8 @@ public final class TabManager {
         }
         return TABS.values().stream().anyMatch(context ->
             context.id() != activeId
-                && context.localServer
-                && (context.level != null
-                    || context.pendingConnection != null
-                    || context.connecting
-                    || context.networkConnection != null
-                        && (context.networkConnection.isConnected() || context.networkConnection.isConnecting()))
+                && isSingleplayerTab(context)
+                && hasSingleplayerState(context)
         );
     }
 
@@ -718,12 +816,24 @@ public final class TabManager {
     }
 
     public static boolean shouldPreserveIntegratedServerDuringDisconnect() {
-        if (client == null || !hasInactiveSingleplayerWorld()) {
+        if (client == null
+            || ((MinecraftAccessor) client).tabby$getSingleplayerServer() == null
+            || !hasInactiveSingleplayerWorld()) {
             return false;
         }
+
         TabContext active = TABS.get(activeId);
-        return active != null && !active.localServer
-            && ((MinecraftAccessor) client).tabby$getSingleplayerServer() != null;
+        boolean activeOwnsMemoryConnection = isSingleplayerTab(active);
+        boolean preserve = active != null && !activeOwnsMemoryConnection;
+        LOGGER.debug(
+            "Disconnect preservation check: activeTab={}, activeLocal={}, inactiveLocalWorld={}, integratedServerPresent={}, preserve={}",
+            active == null ? -1 : active.id(),
+            activeOwnsMemoryConnection,
+            hasInactiveSingleplayerWorld(),
+            ((MinecraftAccessor) client).tabby$getSingleplayerServer() != null,
+            preserve
+        );
+        return preserve;
     }
 
     public static void showSingleplayerWorldBlockedNotice() {

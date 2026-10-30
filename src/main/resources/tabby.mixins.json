@@ -21,7 +21,8 @@
     "ParticleEngineAccessor",
     "GuiMixin",
     "ClientLevelAccessor",
-    "ClientLoginMixin"
+    "ClientLoginMixin",
+    "PauseScreenAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
