@@ -16,6 +16,8 @@ import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.network.DisconnectionDetails;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.client.gui.components.toasts.SystemToast;
@@ -708,6 +710,232 @@ public final class TabManager {
         }
     }
 
+    /**
+     * Handles the PauseScreen's Disconnect button without invoking Minecraft's
+     * global disconnect routine when more than one tab is open.
+     */
+    public static boolean disconnectActiveTabFromPauseScreen() {
+        if (client == null || TABS.size() <= 1) {
+            return false;
+        }
+
+        TabContext context = TABS.get(activeId);
+        if (context == null || !hasTabConnection(context)) {
+            return false;
+        }
+
+        LOGGER.info("Tabby: Disconnect pressed for active tab {} while {} tabs are open", activeId, TABS.size());
+        return disconnectTabToMenu(context.id(), Component.literal("Disconnected by user"), true);
+    }
+
+    /**
+     * Handles a connection listener's disconnect callback in the context that owns it.
+     * A background server must never call Minecraft.disconnect() against the visible tab.
+     */
+    public static boolean handleListenerDisconnect(
+        ClientCommonPacketListenerImpl listener,
+        DisconnectionDetails details
+    ) {
+        if (client == null || listener == null) {
+            return false;
+        }
+
+        int ownerId = ownerIdFor(listener);
+        if (ownerId < 0) {
+            return false;
+        }
+
+        TabContext context = TABS.get(ownerId);
+        if (context == null) {
+            // The tab can already have been removed by closeTab(). Its late network
+            // callback still must not run vanilla's singleton-wide disconnect.
+            return ownerId != activeId || TABS.isEmpty();
+        }
+
+        if (context.disconnecting) {
+            return true;
+        }
+        if (TABS.size() <= 1) {
+            return false;
+        }
+
+        Connection listenerConnection = listener.getConnection();
+        boolean ownsListener = context.clientConnection == listener
+            || context.networkConnection == listenerConnection
+            || context.pendingConnection == listenerConnection
+            || context.replacingConnection == listenerConnection;
+        if (!ownsListener) {
+            return ownerId != activeId;
+        }
+
+        Minecraft currentClient = client;
+        Runnable disconnect = () -> disconnectTabToMenu(
+            ownerId,
+            details.reason(),
+            false
+        );
+        if (currentClient.isSameThread()) {
+            if (currentContextId() == ownerId) {
+                disconnect.run();
+            } else {
+                runIn(ownerId, disconnect);
+                restoreVisibleSharedRenderState(ownerId);
+            }
+        } else {
+            currentClient.execute(() -> {
+                if (currentContextId() == ownerId) {
+                    disconnect.run();
+                } else {
+                    runIn(ownerId, disconnect);
+                    restoreVisibleSharedRenderState(ownerId);
+                }
+            });
+        }
+        LOGGER.info("Tabby: scoped disconnect callback to tab {} instead of the global client", ownerId);
+        return true;
+    }
+
+    private static boolean hasTabConnection(TabContext context) {
+        return context.level != null
+            || context.player != null
+            || context.clientConnection != null
+            || context.networkConnection != null
+            || context.pendingConnection != null
+            || context.connecting
+            || context.localServer;
+    }
+
+    private static boolean disconnectTabToMenu(int tabId, Component reason, boolean closeConnection) {
+        if (client == null) {
+            return false;
+        }
+
+        TabContext context = TABS.get(tabId);
+        if (context == null) {
+            return false;
+        }
+        if (context.disconnecting) {
+            return true;
+        }
+
+        Runnable operation = () -> disconnectInstalledTabToMenu(context, reason, closeConnection);
+        if (currentContextId() == tabId) {
+            operation.run();
+        } else {
+            runIn(tabId, operation);
+            restoreVisibleSharedRenderState(tabId);
+        }
+        return true;
+    }
+
+    private static void disconnectInstalledTabToMenu(
+        TabContext context,
+        Component reason,
+        boolean closeConnection
+    ) {
+        if (client == null || context.disconnecting) {
+            return;
+        }
+
+        Connection network = context.networkConnection;
+        Connection pending = context.pendingConnection;
+        ClientPacketListener listener = context.clientConnection;
+        LevelRenderer renderer = context.levelRenderer;
+        boolean background = context.id() != activeId;
+
+        context.disconnecting = true;
+        context.disconnectingConnection = network;
+        context.disconnectingPendingConnection = pending;
+
+        if (context.localServer) {
+            stopIntegratedServerForTab(context);
+        }
+
+        if (renderer != null) {
+            renderer.setLevel(null);
+        }
+
+        context.level = null;
+        context.player = null;
+        context.gameMode = null;
+        context.clientConnection = null;
+        context.networkConnection = null;
+        context.packetListener = null;
+        context.pendingConnection = null;
+        context.replacingConnection = null;
+        context.playerName = null;
+        context.connecting = false;
+        context.localServer = false;
+        context.worldTransitioning = false;
+        context.worldTransitionTicks = 0;
+        context.serverData = null;
+        context.setTitle("Main Menu");
+        context.gui = new Gui(client);
+        context.hitResult = null;
+        context.crosshairPickEntity = null;
+        context.cameraEntity = null;
+        context.screen = new TitleScreen();
+
+        MinecraftAccessor accessor = (MinecraftAccessor) client;
+        accessor.tabby$setPendingConnection(null);
+        accessor.tabby$setLocalServer(false);
+        client.level = null;
+        client.player = null;
+        client.gameMode = null;
+        client.hitResult = null;
+        client.crosshairPickEntity = null;
+        client.cameraEntity = null;
+        client.gui = context.gui;
+
+        // The dispatcher and particle engine are shared by Minecraft. A background
+        // disconnect temporarily installs that tab, so restore the visible tab's
+        // shared render state after runIn() returns.
+        client.entityRenderDispatcher.setLevel(null);
+        if (!background && client.particleEngine != null) {
+            client.particleEngine.setLevel(null);
+        }
+        if (!background) {
+            KeyMapping.releaseAll();
+            client.getSoundManager().stop();
+        }
+        client.setScreen(context.screen);
+
+        if (closeConnection) {
+            if (listener != null) {
+                listener.close();
+            }
+            if (network != null && (network.isConnected() || network.isConnecting())) {
+                network.disconnect(reason);
+            }
+            if (pending != null && pending != network
+                && (pending.isConnected() || pending.isConnecting())) {
+                pending.disconnect(reason);
+            }
+        }
+
+        if (context.disconnectingConnection == null && context.disconnectingPendingConnection == null) {
+            context.disconnecting = false;
+        }
+
+        LOGGER.info(
+            "Tabby: disconnected only tab {} (connectionCloseRequested={}, otherTabs={})",
+            context.id(),
+            closeConnection,
+            TABS.size() - 1
+        );
+    }
+
+    private static void restoreVisibleSharedRenderState(int disconnectedTabId) {
+        if (client == null || disconnectedTabId == activeId) {
+            return;
+        }
+
+        TabContext visible = TABS.get(activeId);
+        if (visible != null) {
+            restoreClientGlobals(visible);
+        }
+    }
+
     public static void closeTab(int tabId) {
         if (client == null || !TABS.containsKey(tabId)) {
             return;
@@ -1329,6 +1557,8 @@ public final class TabManager {
             boolean ownsConnection = context.networkConnection == connection
                 || context.pendingConnection == connection
                 || context.replacingConnection == connection
+                || context.disconnectingConnection == connection
+                || context.disconnectingPendingConnection == connection
                 || context.clientConnection != null
                     && context.clientConnection.getConnection() == connection;
             if (!ownsConnection) {
@@ -1380,6 +1610,14 @@ public final class TabManager {
             if (context.replacingConnection == connection) {
                 context.replacingConnection = null;
             }
+            if (context.disconnectingConnection == connection) {
+                context.disconnectingConnection = null;
+            }
+            if (context.disconnectingPendingConnection == connection) {
+                context.disconnectingPendingConnection = null;
+            }
+            context.disconnecting = context.disconnectingConnection != null
+                || context.disconnectingPendingConnection != null;
             context.connecting = false;
             context.level = null;
             context.player = null;

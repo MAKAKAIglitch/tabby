@@ -47,6 +47,9 @@ public final class TabContext {
     public boolean worldTransitioning;
     public int worldTransitionTicks;
     public boolean pinned;
+    public boolean disconnecting;
+    public Connection disconnectingConnection;
+    public Connection disconnectingPendingConnection;
 
     public LevelRenderer levelRenderer;
     public ParticleEngine particleEngine;
@@ -117,6 +120,11 @@ public final class TabContext {
                     TabManager.activeId()
                 );
             }
+            return;
+        }
+
+        if (this.disconnecting) {
+            LOGGER.debug("Skipped capture for tab {} while its connection is being disconnected", this.id);
             return;
         }
 

@@ -558,18 +558,68 @@ public final class NetworkSmokeTest {
                 activeTicks
             );
 
-            Connection connectionA = context(0).networkConnection;
-            require(connectionA != null && connectionA.isConnected(), "Server A was not live before the single-player test");
+            verifyNetworkDisconnectPreservesOtherNetworkTab(client);
             TabManager.closeTab(0);
-            require(contextOrNull(0) == null, "Closing tab 0 did not remove its context");
-            require(!connectionA.isConnected(), "Closing tab 0 did not disconnect server A");
+            require(contextOrNull(0) == null, "Closing the disconnected network tab did not remove its context");
+            require(isJoined(context(1)), "Closing the disconnected tab damaged the remaining network connection");
             singleplayerTabId = TabManager.activeId();
+            require(singleplayerTabId == 1, "The remaining network tab was not selected for the single-player test");
             require(contextOrNull(singleplayerTabId) != null, "No active tab remained for the single-player test");
 
             phase = Phase.START_SINGLEPLAYER;
             phaseTicks = 0;
             LOGGER.info("Network smoke test: two-server isolation passed; opening an integrated single-player world next");
         }
+    }
+
+    private static void verifyNetworkDisconnectPreservesOtherNetworkTab(Minecraft client) {
+        TabContext disconnecting = context(0);
+        TabContext remaining = context(1);
+        require(isJoined(disconnecting) && isJoined(remaining),
+            "Two-network disconnect test requires both server tabs to be live");
+
+        Connection disconnectingConnection = disconnecting.networkConnection;
+        Connection remainingConnection = remaining.networkConnection;
+        ClientLevel remainingLevel = remaining.level;
+        LocalPlayer remainingPlayer = remaining.player;
+
+        TabManager.switchTo(0);
+        client.setScreen(new PauseScreen(true));
+        Button disconnectButton = ((PauseScreenAccessor) client.screen).tabby$getDisconnectButton();
+        require(disconnectButton != null && disconnectButton.active,
+            "PauseScreen did not initialize its Disconnect button for the two-network test");
+
+        LOGGER.info(
+            "Network smoke test: pressing PauseScreen Disconnect on tab 0 while tab 1 is another live network connection"
+        );
+        disconnectButton.onPress();
+
+        require(!disconnectingConnection.isConnected(),
+            "Disconnect did not close the selected network connection");
+        require(disconnecting.level == null && disconnecting.player == null && disconnecting.gameMode == null,
+            "Disconnect did not clear only the selected tab's world state");
+        require(disconnecting.screen instanceof TitleScreen,
+            "Disconnect did not return the selected tab to its own title screen");
+        require(client.level == null && client.player == null && client.getConnection() == null,
+            "Disconnected active tab left its world/player/connection in Minecraft globals");
+        require(isJoined(remaining),
+            "Disconnecting tab 0 also disconnected the background network tab");
+        require(remainingConnection.isConnected(),
+            "The other network connection closed when Disconnect was pressed");
+        require(remaining.level == remainingLevel && remaining.player == remainingPlayer,
+            "The other network tab lost its saved world or player");
+        require(TabManager.contexts().size() == 2,
+            "Disconnect should leave both browser tabs open");
+        LOGGER.info("Network smoke test: disconnecting one of two network tabs preserved the other live connection");
+
+        TabManager.switchTo(1);
+        require(client.level == remainingLevel && client.player == remainingPlayer,
+            "Switching to the remaining network tab did not restore its world/player");
+        require(client.getConnection() != null
+                && client.getConnection().getConnection() == remainingConnection,
+            "Switching to the remaining network tab did not restore its listener");
+        require(remainingConnection.isConnected(),
+            "The remaining network connection stopped during the tab switch");
     }
 
     private static void startSingleplayer(Minecraft client) {
