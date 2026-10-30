@@ -189,6 +189,65 @@ public final class TabManager {
         return active == null || active.levelRenderer == renderer;
     }
 
+    /**
+     * Voxy attaches one GPU-heavy render system to every LevelRenderer. Only the
+     * selected tab may own that render system; inactive tab renderers keep their
+     * world identifier and recreate the Voxy renderer when selected again.
+     */
+    public static boolean shouldDeferVoxyRendererCreation(LevelRenderer renderer) {
+        if (client == null || renderer == null) {
+            return false;
+        }
+
+        if (isBackgroundContext()) {
+            return true;
+        }
+
+        TabContext active = TABS.get(activeId);
+        return active != null && active.levelRenderer != null && active.levelRenderer != renderer;
+    }
+
+    private static void suspendVoxyRenderer(LevelRenderer renderer, int tabId) {
+        if (renderer == null) {
+            return;
+        }
+
+        try {
+            java.lang.reflect.Method getRenderer = renderer.getClass().getMethod("voxy$getRenderSystem");
+            Object voxyRenderer = getRenderer.invoke(renderer);
+            if (voxyRenderer == null) {
+                return;
+            }
+
+            renderer.getClass().getMethod("voxy$shutdownRenderer").invoke(renderer);
+            LOGGER.info("Suspended Voxy render system for background tab {}", tabId);
+        } catch (NoSuchMethodException ignored) {
+            // Voxy is optional; its methods exist only when its runtime mixin is applied.
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            LOGGER.warn("Could not suspend Voxy render system for tab {}", tabId, exception);
+        }
+    }
+
+    private static void resumeVoxyRenderer(LevelRenderer renderer, ClientLevel level, int tabId) {
+        if (renderer == null || level == null) {
+            return;
+        }
+
+        try {
+            java.lang.reflect.Method getRenderer = renderer.getClass().getMethod("voxy$getRenderSystem");
+            if (getRenderer.invoke(renderer) != null) {
+                return;
+            }
+
+            renderer.getClass().getMethod("voxy$createRenderer").invoke(renderer);
+            LOGGER.info("Activated Voxy render system for active tab {}", tabId);
+        } catch (NoSuchMethodException ignored) {
+            // Voxy is optional; its methods exist only when its runtime mixin is applied.
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            LOGGER.warn("Could not activate Voxy render system for tab {}", tabId, exception);
+        }
+    }
+
     public static TabContext activeContext() {
         return TABS.get(activeId);
     }
@@ -524,6 +583,7 @@ public final class TabManager {
             && ((ParticleEngineAccessor) context.particleEngine).tabby$getLevel() != context.level) {
             context.particleEngine.setLevel(context.level);
         }
+        resumeVoxyRenderer(context.levelRenderer, context.level, context.id());
     }
 
     public static void createTab() {
@@ -690,6 +750,7 @@ public final class TabManager {
         }
 
         stopIntegratedServerForTab(context);
+        suspendVoxyRenderer(context.levelRenderer, id);
 
         Connection pending = context.pendingConnection;
         Connection connection = context.networkConnection;
@@ -921,6 +982,9 @@ public final class TabManager {
             client.getSoundManager().stop();
             client.mouseHandler.setIgnoreFirstMove();
 
+            if (previous != null) {
+                suspendVoxyRenderer(previous.levelRenderer, previous.id());
+            }
             target.applyTo(client, false);
             activeId = tabId;
             // Keep already-built chunk render state when returning to a known tab.
@@ -934,6 +998,7 @@ public final class TabManager {
             if (((ParticleEngineAccessor) target.particleEngine).tabby$getLevel() != target.level) {
                 target.particleEngine.setLevel(target.level);
             }
+            resumeVoxyRenderer(target.levelRenderer, target.level, target.id());
             if (pauseMenuRequested && target.level != null) {
                 // The source context may have a stale ConnectScreen/overlay saved from login.
                 // Switching from PauseScreen should consistently land on this world's pause menu.
@@ -949,6 +1014,7 @@ public final class TabManager {
             if (previous != null) {
                 activeId = previous.id();
                 previous.applyTo(client, false);
+                resumeVoxyRenderer(previous.levelRenderer, previous.level, previous.id());
                 client.setScreen(previous.screen);
                 KeyMapping.releaseAll();
                 client.mouseHandler.setIgnoreFirstMove();

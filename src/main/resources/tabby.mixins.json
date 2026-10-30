@@ -22,7 +22,8 @@
     "GuiMixin",
     "ClientLevelAccessor",
     "ClientLoginMixin",
-    "PauseScreenAccessor"
+    "PauseScreenAccessor",
+    "VoxyLevelRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
