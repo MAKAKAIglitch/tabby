@@ -3,11 +3,13 @@ package dev.tabby.mixin;
 import dev.tabby.tab.TabOwnedListener;
 import dev.tabby.tab.TabManager;
 import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
+import net.minecraft.network.Connection;
 import net.minecraft.network.DisconnectionDetails;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(ClientCommonPacketListenerImpl.class)
@@ -24,6 +26,10 @@ public abstract class ClientPacketListenerMixin implements TabOwnedListener {
     public void tabby$setTabId(int tabId) {
         this.tabby$tabId = tabId;
     }
+
+    @Accessor("connection")
+    @Override
+    public abstract Connection tabby$getConnection();
 
     @Inject(
         method = "onDisconnect(Lnet/minecraft/network/DisconnectionDetails;)V",

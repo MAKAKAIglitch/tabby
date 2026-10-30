@@ -759,13 +759,17 @@ public final class TabManager {
             return false;
         }
 
-        Connection listenerConnection = listener.getConnection();
+        Connection listenerConnection = ((TabOwnedListener) listener).tabby$getConnection();
         boolean ownsListener = context.clientConnection == listener
             || context.networkConnection == listenerConnection
             || context.pendingConnection == listenerConnection
             || context.replacingConnection == listenerConnection;
         if (!ownsListener) {
-            return ownerId != activeId;
+            // A mapped listener can finish disconnecting after its tab snapshot was
+            // cleared by an earlier Connection.handleDisconnection callback. It still
+            // belongs to this inactive tab and must never reach Minecraft.disconnect().
+            LOGGER.debug("Cancelled stale disconnect callback for tab {} while {} tabs remain", ownerId, TABS.size());
+            return true;
         }
 
         Minecraft currentClient = client;
