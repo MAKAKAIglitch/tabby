@@ -731,8 +731,8 @@ public final class NetworkSmokeTest {
                 "Closing the single-player tab did not disconnect its memory connection");
             require(((MinecraftAccessor) client).tabby$getSingleplayerServer() == null,
                 "Closing the single-player tab left its IntegratedServer registered");
-            require(savedIntegratedServer != null && !savedIntegratedServer.isRunning(),
-                "Closing the single-player tab did not stop its IntegratedServer");
+            require(savedIntegratedServer != null && savedIntegratedServer.isShutdown(),
+                "Closing the single-player tab did not fully stop and join its IntegratedServer thread");
             require(TabManager.contexts().size() == 1, "Final cleanup did not leave exactly one menu context");
             require(client.screen instanceof TitleScreen, "Final cleanup did not return to the title screen");
             LOGGER.info("Tabby single-player integration smoke test passed: network disconnect returned, the hidden IntegratedServer survived, second-world launch was blocked, and cleanup completed.");

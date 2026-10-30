@@ -755,8 +755,16 @@ public final class TabManager {
         IntegratedServer server = accessor.tabby$getSingleplayerServer();
         if (server != null) {
             accessor.tabby$setSingleplayerServer(null);
-            server.halt(false);
-            LOGGER.debug("Stopped integrated server owned by tab {}", context.id());
+            // Do not let Minecraft.close() shut down the shared IO/chunk executors
+            // while the integrated server is still saving chunks on its own thread.
+            // halt(true) joins the server thread after scheduling the player-removal task.
+            server.halt(true);
+            if (!server.isShutdown()) {
+                throw new IllegalStateException(
+                    "Integrated server for tab " + context.id() + " did not fully stop"
+                );
+            }
+            LOGGER.debug("Stopped integrated server owned by tab {} and joined its server thread", context.id());
         }
         accessor.tabby$setLocalServer(false);
         context.localServer = false;

@@ -178,7 +178,7 @@ jobs:
           if [ "$status" -eq 0 ] \
             && grep -Fq "Tabby initialized for Minecraft 1.21.4." network-runclient.log \
             && grep -Fq "Tabby network smoke test passed: both connections remained live for 2400 ticks." network-runclient.log \
-            && grep -Fq "Tabby single-player integration smoke test passed: the integrated world survived a network-tab connection and a second-world launch was blocked." network-runclient.log; then
+            && grep -Fq "Tabby single-player integration smoke test passed: network disconnect returned, the hidden IntegratedServer survived, second-world launch was blocked, and cleanup completed." network-runclient.log; then
             echo "Network switching, integrated-world retention, second-world blocking, and cleanup all passed."
             exit 0
           fi
