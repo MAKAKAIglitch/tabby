@@ -32,28 +32,19 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.ArrayDeque;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Owns the selected tab and routes client-thread packet tasks to their context.
+ * Coordinates tab lifecycle and exposes the stable API used by mixins and UI.
  */
 public final class TabManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tabby");
-    private static final Map<Integer, TabContext> TABS = new LinkedHashMap<>();
-    private static final Map<Connection, Integer> CONNECTION_OWNERS = new IdentityHashMap<>();
-    private static final Map<PacketListener, Integer> LISTENER_OWNERS = new IdentityHashMap<>();
-    private static final ThreadLocal<Integer> EXECUTION_CONTEXT = new ThreadLocal<>();
     private static final ThreadLocal<ArrayDeque<Integer>> CLIENT_LEVEL_TRANSITIONS = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<ArrayDeque<Integer>> CLIENT_LOGIN_HANDLERS = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Integer> CLIENT_DISCONNECT_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final boolean SMOKE_TEST_ENABLED = "1".equals(System.getenv("TABBY_SMOKE_TEST"));
 
     private static Minecraft client;
-    private static volatile int activeId = -1;
-    private static int nextId;
     private static int smokeTestTicks;
     private static int blockedSingleplayerWorldStartCount;
     private static final List<String> RESTORE_QUEUE = new ArrayList<>();
@@ -79,9 +70,9 @@ public final class TabManager {
                 LOGGER.info("Restoring {} server address tab(s) from config", RESTORE_QUEUE.size());
             }
         }
-        TabContext initial = TabContext.capture(client, nextId++, "Main Menu");
-        TABS.put(initial.id(), initial);
-        activeId = initial.id();
+        TabContext initial = TabContext.capture(client, TabRegistry.nextId(), "Main Menu");
+        TabRegistry.put(initial.id(), initial);
+        TabRegistry.setActiveId(initial.id());
 
         TabBar.initialize();
         ClientTickEvents.END_CLIENT_TICK.register(TabManager::onClientTick);
@@ -98,12 +89,12 @@ public final class TabManager {
         }
 
         // Vanilla may run a nested client tick while a packet handler calls setLevel().
-        // That packet handler runs under runIn(tabId), so activeId still identifies the
+        // That packet handler runs under runIn(tabId), so TabRegistry.activeId() still identifies the
         // visible tab, not the context temporarily installed for the packet. Running the
         // background-connection loop here would tick the visible tab against the temporary
         // context and can clear the incoming world's gameMode/player state. Only perform
         // Tabby maintenance from the outer, ordinary client tick.
-        Integer executionId = EXECUTION_CONTEXT.get();
+        Integer executionId = TabContextExecutor.executionId();
         if (executionId != null) {
             LOGGER.debug("Skipping nested client-tick maintenance while processing tab {} packet", executionId);
             return;
@@ -122,7 +113,7 @@ public final class TabManager {
         if (TabbyConfig.showHudInfo()) {
             if (++memoryRefreshTicks >= 20) {
                 memoryRefreshTicks = 0;
-                TabMemoryUsage.refresh(List.copyOf(TABS.values()));
+                TabMemoryUsage.refresh(List.copyOf(TabRegistry.values()));
             }
         } else {
             // The diagnostic HUD is off by default; skip periodic chunk/entity counting
@@ -149,7 +140,7 @@ public final class TabManager {
         } else if (smokeTestTicks == 60 || smokeTestTicks == 80) {
             switchToNext();
         } else if (smokeTestTicks == 100) {
-            if (TABS.size() != 2 || activeId != 0) {
+            if (TabRegistry.size() != 2 || TabRegistry.activeId() != 0) {
                 throw new IllegalStateException("Tabby prototype context-switch smoke test failed");
             }
             LOGGER.info("Tabby prototype context-switch smoke test passed.");
@@ -162,11 +153,11 @@ public final class TabManager {
         }
 
         int contextId = currentContextId();
-        if (contextId < 0 || contextId == activeId) {
+        if (contextId < 0 || contextId == TabRegistry.activeId()) {
             return false;
         }
 
-        TabContext context = TABS.get(contextId);
+        TabContext context = TabRegistry.get(contextId);
         if (context == null) {
             return false;
         }
@@ -180,83 +171,31 @@ public final class TabManager {
      * Only the selected tab's LevelRenderer may enter the world-rendering pipeline.
      */
     public static boolean shouldRenderRenderer(LevelRenderer renderer) {
-        if (renderer == null || client == null || activeId < 0) {
-            return true;
-        }
-        if (isBackgroundContext()) {
-            return false;
-        }
-
-        TabContext active = TABS.get(activeId);
-        return active == null || active.levelRenderer == renderer;
+        return TabRendererCompatibility.shouldRenderRenderer(
+            renderer,
+            client != null,
+            TabRegistry.activeId(),
+            TabRegistry.get(TabRegistry.activeId()),
+            isBackgroundContext()
+        );
     }
 
-    /**
-     * Voxy attaches one GPU-heavy render system to every LevelRenderer. Only the
-     * selected tab may own that render system; inactive tab renderers keep their
-     * world identifier and recreate the Voxy renderer when selected again.
-     */
     public static boolean shouldDeferVoxyRendererCreation(LevelRenderer renderer) {
-        if (client == null || renderer == null) {
-            return false;
-        }
-
-        if (isBackgroundContext()) {
-            return true;
-        }
-
-        TabContext active = TABS.get(activeId);
-        return active != null && active.levelRenderer != null && active.levelRenderer != renderer;
-    }
-
-    private static void suspendVoxyRenderer(LevelRenderer renderer, int tabId) {
-        if (renderer == null) {
-            return;
-        }
-
-        try {
-            java.lang.reflect.Method getRenderer = renderer.getClass().getMethod("voxy$getRenderSystem");
-            Object voxyRenderer = getRenderer.invoke(renderer);
-            if (voxyRenderer == null) {
-                return;
-            }
-
-            renderer.getClass().getMethod("voxy$shutdownRenderer").invoke(renderer);
-            LOGGER.info("Suspended Voxy render system for background tab {}", tabId);
-        } catch (NoSuchMethodException ignored) {
-            // Voxy is optional; its methods exist only when its runtime mixin is applied.
-        } catch (ReflectiveOperationException | RuntimeException exception) {
-            LOGGER.warn("Could not suspend Voxy render system for tab {}", tabId, exception);
-        }
-    }
-
-    private static void resumeVoxyRenderer(LevelRenderer renderer, ClientLevel level, int tabId) {
-        if (renderer == null || level == null) {
-            return;
-        }
-
-        try {
-            java.lang.reflect.Method getRenderer = renderer.getClass().getMethod("voxy$getRenderSystem");
-            if (getRenderer.invoke(renderer) != null) {
-                return;
-            }
-
-            renderer.getClass().getMethod("voxy$createRenderer").invoke(renderer);
-            LOGGER.info("Activated Voxy render system for active tab {}", tabId);
-        } catch (NoSuchMethodException ignored) {
-            // Voxy is optional; its methods exist only when its runtime mixin is applied.
-        } catch (ReflectiveOperationException | RuntimeException exception) {
-            LOGGER.warn("Could not activate Voxy render system for tab {}", tabId, exception);
-        }
+        return TabRendererCompatibility.shouldDeferVoxyRendererCreation(
+            renderer,
+            client != null,
+            TabRegistry.activeId(),
+            TabRegistry.get(TabRegistry.activeId()),
+            isBackgroundContext()
+        );
     }
 
     public static TabContext activeContext() {
-        return TABS.get(activeId);
+        return TabRegistry.get(TabRegistry.activeId());
     }
 
     public static boolean isBackgroundContext() {
-        Integer executionId = EXECUTION_CONTEXT.get();
-        return executionId != null && executionId != activeId;
+        return TabContextExecutor.isBackgroundContext(TabRegistry.activeId());
     }
 
     public static boolean shouldCaptureScreenFromClient() {
@@ -264,8 +203,8 @@ public final class TabManager {
             return true;
         }
 
-        Integer executionId = EXECUTION_CONTEXT.get();
-        return executionId == null || executionId == activeId;
+        Integer executionId = TabContextExecutor.executionId();
+        return executionId == null || executionId == TabRegistry.activeId();
     }
 
     public static void captureCurrentState() {
@@ -279,8 +218,8 @@ public final class TabManager {
         // Vanilla intentionally clears client.level/player while it disconnects the
         // previous world and loads a replacement. Do not capture or "repair" that
         // temporary state: the old listener may already have cleared its level.
-        if (EXECUTION_CONTEXT.get() == null) {
-            TabContext active = TABS.get(activeId);
+        if (TabContextExecutor.executionId() == null) {
+            TabContext active = TabRegistry.get(TabRegistry.activeId());
             if (active != null && active.worldTransitioning) {
                 if (++active.worldTransitionTicks <= 1200) {
                     return;
@@ -299,7 +238,7 @@ public final class TabManager {
             return;
         }
 
-        TabContext context = TABS.get(currentContextId());
+        TabContext context = TabRegistry.get(currentContextId());
         if (context != null) {
             context.captureFrom(client);
         }
@@ -318,7 +257,7 @@ public final class TabManager {
         int depth = CLIENT_DISCONNECT_DEPTH.get();
         CLIENT_DISCONNECT_DEPTH.set(depth + 1);
         if (depth == 0) {
-            TabContext context = TABS.get(currentContextId());
+            TabContext context = TabRegistry.get(currentContextId());
             LOGGER.info(
                 "Tabby: beginning vanilla disconnect for tab {} (destination={}, localServer={}, memoryConnection={}, inactiveSingleplayer={})",
                 context == null ? -1 : context.id(),
@@ -346,7 +285,7 @@ public final class TabManager {
             return;
         }
 
-        TabContext context = TABS.get(currentContextId());
+        TabContext context = TabRegistry.get(currentContextId());
         if (context != null) {
             context.captureFrom(client);
             context.worldTransitioning = false;
@@ -375,7 +314,7 @@ public final class TabManager {
             return;
         }
 
-        TabContext context = TABS.get(currentContextId());
+        TabContext context = TabRegistry.get(currentContextId());
         if (context == null) {
             return;
         }
@@ -418,7 +357,7 @@ public final class TabManager {
             CLIENT_LOGIN_HANDLERS.remove();
         }
 
-        TabContext context = TABS.get(ownerId);
+        TabContext context = TabRegistry.get(ownerId);
         if (context == null) {
             LOGGER.warn("Completed login for unknown Tabby context {}", ownerId);
             return;
@@ -457,7 +396,7 @@ public final class TabManager {
 
         ArrayDeque<Integer> transitions = CLIENT_LEVEL_TRANSITIONS.get();
         transitions.push(ownerId);
-        TabContext context = TABS.get(ownerId);
+        TabContext context = TabRegistry.get(ownerId);
         if (context != null) {
             context.worldTransitioning = true;
             context.worldTransitionTicks = 0;
@@ -492,9 +431,9 @@ public final class TabManager {
             ownerId = listenerOwnerId;
         }
 
-        TabContext context = TABS.get(ownerId);
+        TabContext context = TabRegistry.get(ownerId);
         if (context == null) {
-            LOGGER.warn("Installed a ClientLevel for unknown tab {}; active tab is {}", ownerId, activeId);
+            LOGGER.warn("Installed a ClientLevel for unknown tab {}; active tab is {}", ownerId, TabRegistry.activeId());
             return;
         }
 
@@ -520,11 +459,11 @@ public final class TabManager {
     }
 
     private static boolean restoreActiveContextIfForeignState() {
-        if (EXECUTION_CONTEXT.get() != null) {
+        if (TabContextExecutor.executionId() != null) {
             return false;
         }
 
-        TabContext active = TABS.get(activeId);
+        TabContext active = TabRegistry.get(TabRegistry.activeId());
         if (active == null || active.worldTransitioning) {
             return false;
         }
@@ -547,7 +486,7 @@ public final class TabManager {
             return true;
         }
 
-        for (TabContext other : TABS.values()) {
+        for (TabContext other : TabRegistry.values()) {
             if (other.id() == active.id()) {
                 continue;
             }
@@ -585,14 +524,14 @@ public final class TabManager {
             && ((ParticleEngineAccessor) context.particleEngine).tabby$getLevel() != context.level) {
             context.particleEngine.setLevel(context.level);
         }
-        resumeVoxyRenderer(context.levelRenderer, context.level, context.id());
+        TabRendererCompatibility.resumeVoxyRenderer(context.levelRenderer, context.level, context.id());
     }
 
     public static void createTab() {
         if (client == null) {
             return;
         }
-        if (!TABS.isEmpty() && TABS.size() - 1 >= TabbyConfig.maxBackgroundTabs()) {
+        if (!TabRegistry.isEmpty() && TabRegistry.size() - 1 >= TabbyConfig.maxBackgroundTabs()) {
             SystemToast.add(
                 client.getToastManager(),
                 SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
@@ -603,13 +542,13 @@ public final class TabManager {
             return;
         }
 
-        TabContext current = TABS.get(activeId);
+        TabContext current = TabRegistry.get(TabRegistry.activeId());
         if (current != null) {
             current.captureFrom(client);
         }
 
-        TabContext context = TabContext.createEmpty(client, nextId++);
-        TABS.put(context.id(), context);
+        TabContext context = TabContext.createEmpty(client, TabRegistry.nextId());
+        TabRegistry.put(context.id(), context);
         switchTo(context.id());
     }
 
@@ -626,7 +565,7 @@ public final class TabManager {
         }
         restoreTickDelay = 0;
 
-        if (TABS.size() - 1 >= TabbyConfig.maxBackgroundTabs()) {
+        if (TabRegistry.size() - 1 >= TabbyConfig.maxBackgroundTabs()) {
             LOGGER.warn("Stopped restoring server tabs because the configured background-tab limit was reached");
             RESTORE_QUEUE.clear();
             return;
@@ -635,7 +574,7 @@ public final class TabManager {
         String address = RESTORE_QUEUE.remove(0);
         try {
             createTab();
-            TabContext context = TABS.get(activeId);
+            TabContext context = TabRegistry.get(TabRegistry.activeId());
             if (context == null) {
                 return;
             }
@@ -661,22 +600,22 @@ public final class TabManager {
     }
 
     public static void togglePinned(int tabId) {
-        TabContext context = TABS.get(tabId);
+        TabContext context = TabRegistry.get(tabId);
         if (context == null) {
             return;
         }
 
         context.pinned = !context.pinned;
-        moveTab(tabId, context.pinned ? 0 : TABS.size());
+        moveTab(tabId, context.pinned ? 0 : TabRegistry.size());
         LOGGER.debug("Tab {} pin state changed to {}", tabId, context.pinned);
     }
 
     public static void moveTab(int tabId, int targetIndex) {
-        if (!TABS.containsKey(tabId) || TABS.size() < 2) {
+        if (!TabRegistry.contains(tabId) || TabRegistry.size() < 2) {
             return;
         }
 
-        List<TabContext> ordered = new ArrayList<>(TABS.values());
+        List<TabContext> ordered = new ArrayList<>(TabRegistry.values());
         int oldIndex = -1;
         for (int index = 0; index < ordered.size(); index++) {
             if (ordered.get(index).id() == tabId) {
@@ -704,10 +643,7 @@ public final class TabManager {
         }
 
         ordered.add(targetIndex, moving);
-        TABS.clear();
-        for (TabContext context : ordered) {
-            TABS.put(context.id(), context);
-        }
+        TabRegistry.replaceOrder(ordered);
     }
 
     /**
@@ -715,16 +651,16 @@ public final class TabManager {
      * global disconnect routine when more than one tab is open.
      */
     public static boolean disconnectActiveTabFromPauseScreen() {
-        if (client == null || TABS.size() <= 1) {
+        if (client == null || TabRegistry.size() <= 1) {
             return false;
         }
 
-        TabContext context = TABS.get(activeId);
+        TabContext context = TabRegistry.get(TabRegistry.activeId());
         if (context == null || !hasTabConnection(context)) {
             return false;
         }
 
-        LOGGER.info("Tabby: Disconnect pressed for active tab {} while {} tabs are open", activeId, TABS.size());
+        LOGGER.info("Tabby: Disconnect pressed for active tab {} while {} tabs are open", TabRegistry.activeId(), TabRegistry.size());
         return disconnectTabToMenu(context.id(), Component.literal("Disconnected by user"), true);
     }
 
@@ -745,17 +681,17 @@ public final class TabManager {
             return false;
         }
 
-        TabContext context = TABS.get(ownerId);
+        TabContext context = TabRegistry.get(ownerId);
         if (context == null) {
             // The tab can already have been removed by closeTab(). Its late network
             // callback still must not run vanilla's singleton-wide disconnect.
-            return ownerId != activeId || TABS.isEmpty();
+            return ownerId != TabRegistry.activeId() || TabRegistry.isEmpty();
         }
 
         if (context.disconnecting) {
             return true;
         }
-        if (TABS.size() <= 1) {
+        if (TabRegistry.size() <= 1) {
             return false;
         }
 
@@ -768,7 +704,7 @@ public final class TabManager {
             // A mapped listener can finish disconnecting after its tab snapshot was
             // cleared by an earlier Connection.handleDisconnection callback. It still
             // belongs to this inactive tab and must never reach Minecraft.disconnect().
-            LOGGER.debug("Cancelled stale disconnect callback for tab {} while {} tabs remain", ownerId, TABS.size());
+            LOGGER.debug("Cancelled stale disconnect callback for tab {} while {} tabs remain", ownerId, TabRegistry.size());
             return true;
         }
 
@@ -814,7 +750,7 @@ public final class TabManager {
             return false;
         }
 
-        TabContext context = TABS.get(tabId);
+        TabContext context = TabRegistry.get(tabId);
         if (context == null) {
             return false;
         }
@@ -845,7 +781,7 @@ public final class TabManager {
         Connection pending = context.pendingConnection;
         ClientPacketListener listener = context.clientConnection;
         LevelRenderer renderer = context.levelRenderer;
-        boolean background = context.id() != activeId;
+        boolean background = context.id() != TabRegistry.activeId();
 
         context.disconnecting = true;
         context.disconnectingConnection = network;
@@ -925,48 +861,48 @@ public final class TabManager {
             "Tabby: disconnected only tab {} (connectionCloseRequested={}, otherTabs={})",
             context.id(),
             closeConnection,
-            TABS.size() - 1
+            TabRegistry.size() - 1
         );
     }
 
     private static void restoreVisibleSharedRenderState(int disconnectedTabId) {
-        if (client == null || disconnectedTabId == activeId) {
+        if (client == null || disconnectedTabId == TabRegistry.activeId()) {
             return;
         }
 
-        TabContext visible = TABS.get(activeId);
+        TabContext visible = TabRegistry.get(TabRegistry.activeId());
         if (visible != null) {
             restoreClientGlobals(visible);
         }
     }
 
     public static void closeTab(int tabId) {
-        if (client == null || !TABS.containsKey(tabId)) {
+        if (client == null || !TabRegistry.contains(tabId)) {
             return;
         }
 
-        if (tabId == activeId && TABS.size() > 1) {
-            List<Integer> ids = new ArrayList<>(TABS.keySet());
+        if (tabId == TabRegistry.activeId() && TabRegistry.size() > 1) {
+            List<Integer> ids = new ArrayList<>(TabRegistry.ids());
             int currentIndex = ids.indexOf(tabId);
             switchTo(ids.get((currentIndex + 1) % ids.size()));
         }
 
-        TabContext closing = TABS.remove(tabId);
+        TabContext closing = TabRegistry.remove(tabId);
         if (closing == null) {
             return;
         }
         disposeTab(closing, true);
 
-        if (TABS.isEmpty()) {
-            TabContext menu = TabContext.createEmpty(client, nextId++);
-            TABS.put(menu.id(), menu);
-            activeId = menu.id();
+        if (TabRegistry.isEmpty()) {
+            TabContext menu = TabContext.createEmpty(client, TabRegistry.nextId());
+            TabRegistry.put(menu.id(), menu);
+            TabRegistry.setActiveId(menu.id());
             menu.applyTo(client, false);
             client.setScreen(menu.screen);
             menu.captureFrom(client);
             LOGGER.debug("Closed final tab; returned to main menu context {}", menu.id());
-        } else if (activeId == tabId) {
-            switchTo(TABS.keySet().iterator().next());
+        } else if (TabRegistry.activeId() == tabId) {
+            switchTo(TabRegistry.firstId());
         }
     }
 
@@ -974,15 +910,10 @@ public final class TabManager {
         int id = context.id();
         TabMemoryUsage.remove(id);
 
-        synchronized (CONNECTION_OWNERS) {
-            CONNECTION_OWNERS.entrySet().removeIf(entry -> entry.getValue() == id);
-        }
-        synchronized (LISTENER_OWNERS) {
-            LISTENER_OWNERS.entrySet().removeIf(entry -> entry.getValue() == id);
-        }
+        ConnectionOwnershipRegistry.removeTab(id);
 
         stopIntegratedServerForTab(context);
-        suspendVoxyRenderer(context.levelRenderer, id);
+        TabRendererCompatibility.suspendVoxyRenderer(context.levelRenderer, id);
 
         Connection pending = context.pendingConnection;
         Connection connection = context.networkConnection;
@@ -1035,7 +966,7 @@ public final class TabManager {
             return;
         }
 
-        boolean anotherTabOwnsLocalWorld = TABS.values().stream()
+        boolean anotherTabOwnsLocalWorld = TabRegistry.values().stream()
             .anyMatch(other -> other.id() != context.id()
                 && isSingleplayerTab(other)
                 && hasSingleplayerState(other));
@@ -1069,10 +1000,10 @@ public final class TabManager {
             return;
         }
 
-        LOGGER.debug("Shutting down Tabby; closing {} tab contexts", TABS.size());
+        LOGGER.debug("Shutting down Tabby; closing {} tab contexts", TabRegistry.size());
         if (TabbyConfig.restoreServerAddresses()) {
             List<String> addresses = new ArrayList<>();
-            for (TabContext context : TABS.values()) {
+            for (TabContext context : TabRegistry.values()) {
                 ServerData serverData = context.serverData;
                 if (!context.localServer && serverData != null && serverData.ip != null && !serverData.ip.isBlank()) {
                     addresses.add(serverData.ip);
@@ -1084,20 +1015,15 @@ public final class TabManager {
         KeyMapping.releaseAll();
         shuttingDownClient.getSoundManager().stop();
 
-        for (TabContext context : List.copyOf(TABS.values())) {
-            disposeTab(context, context.id() != activeId);
+        for (TabContext context : List.copyOf(TabRegistry.values())) {
+            disposeTab(context, context.id() != TabRegistry.activeId());
         }
 
-        TABS.clear();
+        TabRegistry.clear();
         TabMemoryUsage.clear();
-        synchronized (CONNECTION_OWNERS) {
-            CONNECTION_OWNERS.clear();
-        }
-        synchronized (LISTENER_OWNERS) {
-            LISTENER_OWNERS.clear();
-        }
-        EXECUTION_CONTEXT.remove();
-        activeId = -1;
+        ConnectionOwnershipRegistry.clear();
+        TabContextExecutor.clearCurrentThread();
+        TabRegistry.setActiveId(-1);
         client = null;
     }
 
@@ -1105,8 +1031,8 @@ public final class TabManager {
         if (client == null) {
             return false;
         }
-        return TABS.values().stream().anyMatch(context ->
-            context.id() != activeId
+        return TabRegistry.values().stream().anyMatch(context ->
+            context.id() != TabRegistry.activeId()
                 && isSingleplayerTab(context)
                 && hasSingleplayerState(context)
         );
@@ -1123,7 +1049,7 @@ public final class TabManager {
             return false;
         }
 
-        TabContext active = TABS.get(activeId);
+        TabContext active = TabRegistry.get(TabRegistry.activeId());
         boolean activeOwnsMemoryConnection = isSingleplayerTab(active);
         boolean preserve = active != null && !activeOwnsMemoryConnection;
         LOGGER.debug(
@@ -1165,7 +1091,7 @@ public final class TabManager {
             return true;
         }
         if (key == TabbyConfig.keyCloseTab()) {
-            closeTab(activeId);
+            closeTab(TabRegistry.activeId());
             return true;
         }
         if (key == TabbyConfig.keyNextTab()) {
@@ -1181,30 +1107,30 @@ public final class TabManager {
     }
 
     private static void switchToIndex(int index) {
-        List<Integer> ids = new ArrayList<>(TABS.keySet());
+        List<Integer> ids = new ArrayList<>(TabRegistry.ids());
         if (index >= 0 && index < ids.size()) {
             switchTo(ids.get(index));
         }
     }
 
     public static void switchToNext() {
-        if (TABS.size() < 2) {
+        if (TabRegistry.size() < 2) {
             return;
         }
 
-        List<Integer> ids = new ArrayList<>(TABS.keySet());
-        int currentIndex = ids.indexOf(activeId);
+        List<Integer> ids = new ArrayList<>(TabRegistry.ids());
+        int currentIndex = ids.indexOf(TabRegistry.activeId());
         switchTo(ids.get((currentIndex + 1) % ids.size()));
     }
 
     public static void switchTo(int tabId) {
-        if (client == null || tabId == activeId || !TABS.containsKey(tabId)) {
+        if (client == null || tabId == TabRegistry.activeId() || !TabRegistry.contains(tabId)) {
             return;
         }
 
         boolean pauseMenuRequested = client.screen instanceof PauseScreen;
-        TabContext previous = TABS.get(activeId);
-        TabContext target = TABS.get(tabId);
+        TabContext previous = TabRegistry.get(TabRegistry.activeId());
+        TabContext target = TabRegistry.get(tabId);
         if (previous != null) {
             previous.captureFrom(client);
         }
@@ -1215,10 +1141,10 @@ public final class TabManager {
             client.mouseHandler.setIgnoreFirstMove();
 
             if (previous != null) {
-                suspendVoxyRenderer(previous.levelRenderer, previous.id());
+                TabRendererCompatibility.suspendVoxyRenderer(previous.levelRenderer, previous.id());
             }
             target.applyTo(client, false);
-            activeId = tabId;
+            TabRegistry.setActiveId(tabId);
             // Keep already-built chunk render state when returning to a known tab.
             // setLevel() calls allChanged(), so only call it if the renderer has a different world.
             if (((LevelRendererAccessor) target.levelRenderer).tabby$getLevel() != target.level) {
@@ -1230,7 +1156,7 @@ public final class TabManager {
             if (((ParticleEngineAccessor) target.particleEngine).tabby$getLevel() != target.level) {
                 target.particleEngine.setLevel(target.level);
             }
-            resumeVoxyRenderer(target.levelRenderer, target.level, target.id());
+            TabRendererCompatibility.resumeVoxyRenderer(target.levelRenderer, target.level, target.id());
             if (pauseMenuRequested && target.level != null) {
                 // The source context may have a stale ConnectScreen/overlay saved from login.
                 // Switching from PauseScreen should consistently land on this world's pause menu.
@@ -1244,9 +1170,9 @@ public final class TabManager {
         } catch (RuntimeException | Error exception) {
             LOGGER.debug("Failed to switch to tab {}", tabId, exception);
             if (previous != null) {
-                activeId = previous.id();
+                TabRegistry.setActiveId(previous.id());
                 previous.applyTo(client, false);
-                resumeVoxyRenderer(previous.levelRenderer, previous.level, previous.id());
+                TabRendererCompatibility.resumeVoxyRenderer(previous.levelRenderer, previous.level, previous.id());
                 client.setScreen(previous.screen);
                 KeyMapping.releaseAll();
                 client.mouseHandler.setIgnoreFirstMove();
@@ -1271,86 +1197,7 @@ public final class TabManager {
     }
 
     public static void runIn(int tabId, Runnable task) {
-        if (client == null || task == null) {
-            if (task != null) {
-                task.run();
-            }
-            return;
-        }
-
-        int previousId = currentContextId();
-        if (previousId == tabId) {
-            // Even tasks for the visible tab need an execution marker. Minecraft may call
-            // setLevel() from a login handler, and setLevel() performs a nested client tick.
-            // Without this marker, Tabby would run its background-connection loop inside
-            // that nested tick while the active tab is temporarily between level states.
-            Integer previousExecutionId = EXECUTION_CONTEXT.get();
-            if (previousExecutionId != null) {
-                task.run();
-                return;
-            }
-
-            EXECUTION_CONTEXT.set(tabId);
-            try {
-                task.run();
-            } catch (RuntimeException | Error exception) {
-                LOGGER.debug("Packet task failed in active tab {}", tabId, exception);
-                throw exception;
-            } finally {
-                EXECUTION_CONTEXT.remove();
-            }
-            return;
-        }
-
-        TabContext previous = TABS.get(previousId);
-        TabContext target = TABS.get(tabId);
-        if (target == null) {
-            LOGGER.debug("Ignoring task for unknown tab {}", tabId);
-            return;
-        }
-
-        Integer previousExecutionId = EXECUTION_CONTEXT.get();
-        TabContext previousState = previous;
-        if (previous != null) {
-            if (previousExecutionId == null) {
-                // At the outermost packet boundary the visible context is stable and can
-                // be committed to its persistent snapshot.
-                previous.captureFrom(client);
-            } else {
-                // A nested runIn can happen from Minecraft's forced tick while an outer
-                // login handler is halfway through setLevel/createPlayer. Save the exact
-                // transient globals for restoration, but never publish them into the
-                // persistent tab snapshot (for example gameMode == null during login).
-                previousState = TabContext.capture(client, previousId, previous.title());
-            }
-        }
-
-        try {
-            EXECUTION_CONTEXT.set(tabId);
-            // Never swap the global Screen reference while executing a background packet.
-            // Screen changes are intercepted by MinecraftMixin and stored on the owning tab.
-            target.applyTo(client, false);
-            task.run();
-        } catch (RuntimeException | Error exception) {
-            LOGGER.debug("Packet task failed in tab {}", tabId, exception);
-            throw exception;
-        } finally {
-            try {
-                target.captureFrom(client);
-            } finally {
-                try {
-                    if (previousState != null) {
-                        previousState.applyTo(client, false);
-                    }
-                } finally {
-                    if (previousExecutionId == null) {
-                        EXECUTION_CONTEXT.remove();
-                    } else {
-                        EXECUTION_CONTEXT.set(previousExecutionId);
-                    }
-                }
-            }
-        }
+        TabContextExecutor.runIn(client, TabRegistry.activeId(), TabRegistry.view(), tabId, task);
     }
 
     /**
@@ -1369,7 +1216,7 @@ public final class TabManager {
             return;
         }
 
-        TabContext context = TABS.get(currentContextId());
+        TabContext context = TabRegistry.get(currentContextId());
         if (context == null) {
             minecraft.disconnect();
             return;
@@ -1418,13 +1265,13 @@ public final class TabManager {
         }
 
         int targetId = currentContextId();
-        TabContext target = TABS.get(targetId);
+        TabContext target = TabRegistry.get(targetId);
         if (target == null) {
             return false;
         }
 
         String username = client.getUser().getName();
-        for (TabContext existing : TABS.values()) {
+        for (TabContext existing : TabRegistry.values()) {
             if (existing.id() == targetId
                 || !username.equals(existing.playerName)
                 || !hasLiveConnectionAttempt(existing)
@@ -1492,7 +1339,7 @@ public final class TabManager {
 
     private static int uniqueConnectingTabId() {
         int candidate = -1;
-        for (TabContext context : TABS.values()) {
+        for (TabContext context : TabRegistry.values()) {
             if (!context.connecting) {
                 continue;
             }
@@ -1515,7 +1362,7 @@ public final class TabManager {
             return false;
         }
 
-        TabContext context = TABS.get(currentContextId());
+        TabContext context = TabRegistry.get(currentContextId());
         if (context == null || !context.connecting) {
             return false;
         }
@@ -1556,7 +1403,7 @@ public final class TabManager {
     private static void cleanupDisconnectedConnection(Connection connection) {
         PacketListener disconnectedListener = connection.getPacketListener();
 
-        for (TabContext context : List.copyOf(TABS.values())) {
+        for (TabContext context : List.copyOf(TabRegistry.values())) {
             boolean replacingOldConnection = context.connecting && context.replacingConnection == connection;
             boolean ownsConnection = context.networkConnection == connection
                 || context.pendingConnection == connection
@@ -1573,7 +1420,7 @@ public final class TabManager {
                 LOGGER.warn(
                     "Disconnect cleanup reached integrated-world tab {} while active tab {} owns the client (localServer={}, level={}, connectionMatch={}, listenerMatch={})",
                     context.id(),
-                    activeId,
+                    TabRegistry.activeId(),
                     context.localServer,
                     System.identityHashCode(context.level),
                     context.networkConnection == connection,
@@ -1628,7 +1475,7 @@ public final class TabManager {
             context.gameMode = null;
             if (connection.isMemoryConnection()) {
                 context.localServer = false;
-                if (client != null && context.id() == activeId) {
+                if (client != null && context.id() == TabRegistry.activeId()) {
                     ((MinecraftAccessor) client).tabby$setLocalServer(false);
                 }
             }
@@ -1643,14 +1490,7 @@ public final class TabManager {
             );
         }
 
-        synchronized (CONNECTION_OWNERS) {
-            CONNECTION_OWNERS.remove(connection);
-        }
-        if (disconnectedListener != null) {
-            synchronized (LISTENER_OWNERS) {
-                LISTENER_OWNERS.remove(disconnectedListener);
-            }
-        }
+        ConnectionOwnershipRegistry.removeConnection(connection, disconnectedListener);
     }
 
     public static void onConnectionCreated(Connection connection) {
@@ -1661,9 +1501,7 @@ public final class TabManager {
         if (ownerId < 0) {
             ownerId = currentContextId();
         }
-        synchronized (CONNECTION_OWNERS) {
-            CONNECTION_OWNERS.putIfAbsent(connection, ownerId);
-        }
+        ConnectionOwnershipRegistry.registerConnection(connection, ownerId);
     }
 
     public static void onListenerAssigned(Connection connection, PacketListener listener) {
@@ -1671,17 +1509,11 @@ public final class TabManager {
             return;
         }
 
-        final int ownerId;
-        synchronized (CONNECTION_OWNERS) {
-            ownerId = CONNECTION_OWNERS.computeIfAbsent(connection, ignored -> currentContextId());
-        }
-        synchronized (LISTENER_OWNERS) {
-            LISTENER_OWNERS.put(listener, ownerId);
-        }
-
-        if (listener instanceof TabOwnedListener owned) {
-            owned.tabby$setTabId(ownerId);
-        }
+        final int ownerId = ConnectionOwnershipRegistry.registerListener(
+            connection,
+            listener,
+            currentContextId()
+        );
 
         Minecraft currentClient = client;
         if (currentClient == null) {
@@ -1689,7 +1521,7 @@ public final class TabManager {
         }
 
         currentClient.execute(() -> {
-            TabContext context = TABS.get(ownerId);
+            TabContext context = TabRegistry.get(ownerId);
             if (context == null) {
                 return;
             }
@@ -1725,13 +1557,7 @@ public final class TabManager {
     }
 
     private static int ownerIdFor(PacketListener listener) {
-        if (listener instanceof TabOwnedListener owned && owned.tabby$getTabId() >= 0) {
-            return owned.tabby$getTabId();
-        }
-
-        synchronized (LISTENER_OWNERS) {
-            return LISTENER_OWNERS.getOrDefault(listener, -1);
-        }
+        return ConnectionOwnershipRegistry.ownerIdFor(listener);
     }
 
     private static void tickBackgroundConnections() {
@@ -1739,10 +1565,10 @@ public final class TabManager {
             return;
         }
 
-        int selectedId = activeId;
+        int selectedId = TabRegistry.activeId();
         Connection nativePendingConnection = ((MinecraftAccessor) client).tabby$getPendingConnection();
 
-        for (TabContext context : List.copyOf(TABS.values())) {
+        for (TabContext context : List.copyOf(TabRegistry.values())) {
             if (context.id() == selectedId) {
                 // Vanilla ticks pendingConnection itself, but the login-to-configuration
                 // transition can clear it before a player/world exists. Keep that active
@@ -1770,19 +1596,18 @@ public final class TabManager {
      * Context snapshots must never capture globals belonging to another tab.
      */
     public static boolean isContextInstalled(int tabId) {
-        return client != null && currentContextId() == tabId;
+        return TabContextExecutor.isContextInstalled(client != null, TabRegistry.activeId(), tabId);
     }
 
     private static int currentContextId() {
-        Integer id = EXECUTION_CONTEXT.get();
-        return id == null ? activeId : id;
+        return TabContextExecutor.currentContextId(TabRegistry.activeId());
     }
 
     public static int activeId() {
-        return activeId;
+        return TabRegistry.activeId();
     }
 
     public static List<TabContext> contexts() {
-        return List.copyOf(TABS.values());
+        return List.copyOf(TabRegistry.values());
     }
 }
