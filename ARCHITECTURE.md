@@ -10,8 +10,10 @@ The architecture separates the state boundaries that must remain correct during 
 
 | Component | Owns | Does not own |
 |---|---|---|
-| `TabManager` | High-level orchestration, tab lifecycle, connect/disconnect decisions, tick scheduling | Low-level registry storage, execution ThreadLocal, connection identity maps, optional renderer reflection |
+| `TabManager` | World-transition coordination, tick scheduling, stable API façade for mixins/UI | Tab registry, tab CRUD, connection policy, execution ThreadLocal, connection identity maps, optional renderer reflection |
 | `TabRegistry` | Tab IDs, active ID, ordered membership, read-only lookup view | Network events or context installation |
+| `TabLifecycleManager` | Tab creation, ordering, closing, resource disposal, integrated-server ownership and shutdown | Packet routing or UI rendering |
+| `TabConnectionManager` | Connect attempts, disconnect policy, connection callbacks, background connection ticks | Tab identity storage or tab ordering |
 | `TabContext` | Snapshot of client fields belonging to one logical tab | Scheduling, connection routing, or tab ordering |
 | `TabContextExecutor` | Scoped global-state installation, nested execution marker, restoration after packet tasks | Ownership discovery or tab lifecycle |
 | `ConnectionOwnershipRegistry` | Identity mapping from `Connection` / `PacketListener` to tab IDs | Disconnect policy or Minecraft field mutation |
@@ -31,11 +33,11 @@ The architecture separates the state boundaries that must remain correct during 
 ## Extension rules
 
 - New mixin/UI entry points should call the existing `TabManager` façade rather than depend directly on registry internals.
-- Connection ownership code belongs in `ConnectionOwnershipRegistry`; policy for what a disconnect should do remains in `TabManager` until the connection lifecycle is extracted as its own coordinator.
+- Connection identity mapping belongs in `ConnectionOwnershipRegistry`; connection and disconnect policy belongs in `TabConnectionManager`.
 - Code that temporarily installs one tab's Minecraft globals belongs in `TabContextExecutor`.
 - Renderer/vendor-specific behavior belongs in `TabRendererCompatibility`.
 - When moving more responsibilities out of `TabManager`, preserve public static methods until all mixin and UI callers have been migrated and CI proves the behavior unchanged.
 
 ## Current limitations
 
-This separation is an incremental refactor, not a claim that all orchestration has already left `TabManager`. Lifecycle and connection policy are still coordinated there. Chat, inventory, audio, entity and arbitrary third-party-mod state are not yet fully isolated between tabs.
+This remains an incremental refactor: world-transition recovery and top-level tick orchestration remain in `TabManager`, while tab lifecycle and network policy are delegated to dedicated coordinators. Chat, inventory, audio, entity and arbitrary third-party-mod state are not yet fully isolated between tabs.

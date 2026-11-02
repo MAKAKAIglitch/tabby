@@ -35,7 +35,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 
 /**
- * Coordinates tab lifecycle and exposes the stable API used by mixins and UI.
+ * Coordinates world transitions and exposes the stable API used by mixins and UI.
  */
 public final class TabManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tabby");
@@ -52,6 +52,10 @@ public final class TabManager {
     private static int memoryRefreshTicks;
 
     private TabManager() {
+    }
+
+    static Minecraft clientInstance() {
+        return client;
     }
 
     public static void initialize(Minecraft minecraft) {
@@ -109,7 +113,7 @@ public final class TabManager {
         }
 
         tickRestoredServerAddresses(minecraft);
-        tickBackgroundConnections();
+        TabConnectionManager.tickBackgroundConnections();
         if (TabbyConfig.showHudInfo()) {
             if (++memoryRefreshTicks >= 20) {
                 memoryRefreshTicks = 0;
@@ -263,7 +267,7 @@ public final class TabManager {
                 context == null ? -1 : context.id(),
                 destination == null ? "null" : destination.getClass().getSimpleName(),
                 context != null && context.localServer,
-                isSingleplayerTab(context),
+                TabLifecycleManager.isSingleplayerTab(context),
                 hasInactiveSingleplayerWorld()
             );
         }
@@ -334,7 +338,7 @@ public final class TabManager {
             return;
         }
 
-        int ownerId = ownerIdFor(listener);
+        int ownerId = ConnectionOwnershipRegistry.ownerIdFor(listener);
         if (ownerId < 0) {
             ownerId = currentContextId();
         }
@@ -348,7 +352,7 @@ public final class TabManager {
         }
 
         ArrayDeque<Integer> handlers = CLIENT_LOGIN_HANDLERS.get();
-        int ownerId = handlers.isEmpty() ? ownerIdFor(listener) : handlers.pop();
+        int ownerId = handlers.isEmpty() ? ConnectionOwnershipRegistry.ownerIdFor(listener) : handlers.pop();
         if (ownerId < 0) {
             ownerId = currentContextId();
         }
@@ -389,7 +393,7 @@ public final class TabManager {
         int ownerId = currentContextId();
         ClientPacketListener incomingListener =
             ((ClientLevelAccessor) incomingLevel).tabby$getConnection();
-        int listenerOwnerId = ownerIdFor(incomingListener);
+        int listenerOwnerId = ConnectionOwnershipRegistry.ownerIdFor(incomingListener);
         if (listenerOwnerId >= 0) {
             ownerId = listenerOwnerId;
         }
@@ -426,7 +430,7 @@ public final class TabManager {
 
         ClientPacketListener listener =
             ((ClientLevelAccessor) installedLevel).tabby$getConnection();
-        int listenerOwnerId = ownerIdFor(listener);
+        int listenerOwnerId = ConnectionOwnershipRegistry.ownerIdFor(listener);
         if (listenerOwnerId >= 0) {
             ownerId = listenerOwnerId;
         }
@@ -511,7 +515,7 @@ public final class TabManager {
         return false;
     }
 
-    private static void restoreClientGlobals(TabContext context) {
+    static void restoreClientGlobals(TabContext context) {
         context.applyTo(client, true);
         if (context.levelRenderer != null
             && ((LevelRendererAccessor) context.levelRenderer).tabby$getLevel() != context.level) {
@@ -528,28 +532,7 @@ public final class TabManager {
     }
 
     public static void createTab() {
-        if (client == null) {
-            return;
-        }
-        if (!TabRegistry.isEmpty() && TabRegistry.size() - 1 >= TabbyConfig.maxBackgroundTabs()) {
-            SystemToast.add(
-                client.getToastManager(),
-                SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
-                Component.literal("Tabby"),
-                Component.literal("Background tab limit reached. Close a tab first.")
-            );
-            LOGGER.debug("Tab creation rejected: background-tab limit {} reached", TabbyConfig.maxBackgroundTabs());
-            return;
-        }
-
-        TabContext current = TabRegistry.get(TabRegistry.activeId());
-        if (current != null) {
-            current.captureFrom(client);
-        }
-
-        TabContext context = TabContext.createEmpty(client, TabRegistry.nextId());
-        TabRegistry.put(context.id(), context);
-        switchTo(context.id());
+        TabLifecycleManager.createTab();
     }
 
     /**
@@ -600,398 +583,26 @@ public final class TabManager {
     }
 
     public static void togglePinned(int tabId) {
-        TabContext context = TabRegistry.get(tabId);
-        if (context == null) {
-            return;
-        }
-
-        context.pinned = !context.pinned;
-        moveTab(tabId, context.pinned ? 0 : TabRegistry.size());
-        LOGGER.debug("Tab {} pin state changed to {}", tabId, context.pinned);
+        TabLifecycleManager.togglePinned(tabId);
     }
 
     public static void moveTab(int tabId, int targetIndex) {
-        if (!TabRegistry.contains(tabId) || TabRegistry.size() < 2) {
-            return;
-        }
-
-        List<TabContext> ordered = new ArrayList<>(TabRegistry.values());
-        int oldIndex = -1;
-        for (int index = 0; index < ordered.size(); index++) {
-            if (ordered.get(index).id() == tabId) {
-                oldIndex = index;
-                break;
-            }
-        }
-        if (oldIndex < 0) {
-            return;
-        }
-
-        TabContext moving = ordered.remove(oldIndex);
-        if (oldIndex < targetIndex) {
-            targetIndex--;
-        }
-
-        int pinnedCount = (int) ordered.stream().filter(context -> context.pinned).count();
-        if (moving.pinned) {
-            targetIndex = Math.max(0, Math.min(pinnedCount, targetIndex));
-        } else {
-            targetIndex = Math.max(pinnedCount, Math.min(ordered.size(), targetIndex));
-        }
-        if (ordered.size() > 0 && targetIndex > ordered.size()) {
-            targetIndex = ordered.size();
-        }
-
-        ordered.add(targetIndex, moving);
-        TabRegistry.replaceOrder(ordered);
+        TabLifecycleManager.moveTab(tabId, targetIndex);
     }
 
-    /**
-     * Handles the PauseScreen's Disconnect button without invoking Minecraft's
-     * global disconnect routine when more than one tab is open.
-     */
     public static boolean disconnectActiveTabFromPauseScreen() {
-        if (client == null || TabRegistry.size() <= 1) {
-            return false;
-        }
-
-        TabContext context = TabRegistry.get(TabRegistry.activeId());
-        if (context == null || !hasTabConnection(context)) {
-            return false;
-        }
-
-        LOGGER.info("Tabby: Disconnect pressed for active tab {} while {} tabs are open", TabRegistry.activeId(), TabRegistry.size());
-        return disconnectTabToMenu(context.id(), Component.literal("Disconnected by user"), true);
+        return TabConnectionManager.disconnectActiveTabFromPauseScreen();
     }
 
-    /**
-     * Handles a connection listener's disconnect callback in the context that owns it.
-     * A background server must never call Minecraft.disconnect() against the visible tab.
-     */
     public static boolean handleListenerDisconnect(
         ClientCommonPacketListenerImpl listener,
         DisconnectionDetails details
     ) {
-        if (client == null || listener == null) {
-            return false;
-        }
-
-        int ownerId = ownerIdFor(listener);
-        if (ownerId < 0) {
-            return false;
-        }
-
-        TabContext context = TabRegistry.get(ownerId);
-        if (context == null) {
-            // The tab can already have been removed by closeTab(). Its late network
-            // callback still must not run vanilla's singleton-wide disconnect.
-            return ownerId != TabRegistry.activeId() || TabRegistry.isEmpty();
-        }
-
-        if (context.disconnecting) {
-            return true;
-        }
-        if (TabRegistry.size() <= 1) {
-            return false;
-        }
-
-        Connection listenerConnection = ((TabOwnedListener) listener).tabby$getConnection();
-        boolean ownsListener = context.clientConnection == listener
-            || context.networkConnection == listenerConnection
-            || context.pendingConnection == listenerConnection
-            || context.replacingConnection == listenerConnection;
-        if (!ownsListener) {
-            // A mapped listener can finish disconnecting after its tab snapshot was
-            // cleared by an earlier Connection.handleDisconnection callback. It still
-            // belongs to this inactive tab and must never reach Minecraft.disconnect().
-            LOGGER.debug("Cancelled stale disconnect callback for tab {} while {} tabs remain", ownerId, TabRegistry.size());
-            return true;
-        }
-
-        Minecraft currentClient = client;
-        Runnable disconnect = () -> disconnectTabToMenu(
-            ownerId,
-            details.reason(),
-            false
-        );
-        if (currentClient.isSameThread()) {
-            if (currentContextId() == ownerId) {
-                disconnect.run();
-            } else {
-                runIn(ownerId, disconnect);
-                restoreVisibleSharedRenderState(ownerId);
-            }
-        } else {
-            currentClient.execute(() -> {
-                if (currentContextId() == ownerId) {
-                    disconnect.run();
-                } else {
-                    runIn(ownerId, disconnect);
-                    restoreVisibleSharedRenderState(ownerId);
-                }
-            });
-        }
-        LOGGER.info("Tabby: scoped disconnect callback to tab {} instead of the global client", ownerId);
-        return true;
-    }
-
-    private static boolean hasTabConnection(TabContext context) {
-        return context.level != null
-            || context.player != null
-            || context.clientConnection != null
-            || context.networkConnection != null
-            || context.pendingConnection != null
-            || context.connecting
-            || context.localServer;
-    }
-
-    private static boolean disconnectTabToMenu(int tabId, Component reason, boolean closeConnection) {
-        if (client == null) {
-            return false;
-        }
-
-        TabContext context = TabRegistry.get(tabId);
-        if (context == null) {
-            return false;
-        }
-        if (context.disconnecting) {
-            return true;
-        }
-
-        Runnable operation = () -> disconnectInstalledTabToMenu(context, reason, closeConnection);
-        if (currentContextId() == tabId) {
-            operation.run();
-        } else {
-            runIn(tabId, operation);
-            restoreVisibleSharedRenderState(tabId);
-        }
-        return true;
-    }
-
-    private static void disconnectInstalledTabToMenu(
-        TabContext context,
-        Component reason,
-        boolean closeConnection
-    ) {
-        if (client == null || context.disconnecting) {
-            return;
-        }
-
-        Connection network = context.networkConnection;
-        Connection pending = context.pendingConnection;
-        ClientPacketListener listener = context.clientConnection;
-        LevelRenderer renderer = context.levelRenderer;
-        boolean background = context.id() != TabRegistry.activeId();
-
-        context.disconnecting = true;
-        context.disconnectingConnection = network;
-        context.disconnectingPendingConnection = pending;
-
-        if (context.localServer) {
-            stopIntegratedServerForTab(context);
-        }
-
-        if (renderer != null) {
-            renderer.setLevel(null);
-        }
-
-        context.level = null;
-        context.player = null;
-        context.gameMode = null;
-        context.clientConnection = null;
-        context.networkConnection = null;
-        context.packetListener = null;
-        context.pendingConnection = null;
-        context.replacingConnection = null;
-        context.playerName = null;
-        context.connecting = false;
-        context.localServer = false;
-        context.worldTransitioning = false;
-        context.worldTransitionTicks = 0;
-        context.serverData = null;
-        context.setTitle("Main Menu");
-        context.gui = new Gui(client);
-        context.hitResult = null;
-        context.crosshairPickEntity = null;
-        context.cameraEntity = null;
-        context.screen = new TitleScreen();
-
-        MinecraftAccessor accessor = (MinecraftAccessor) client;
-        accessor.tabby$setPendingConnection(null);
-        accessor.tabby$setLocalServer(false);
-        client.level = null;
-        client.player = null;
-        client.gameMode = null;
-        client.hitResult = null;
-        client.crosshairPickEntity = null;
-        client.cameraEntity = null;
-        client.gui = context.gui;
-
-        // The dispatcher and particle engine are shared by Minecraft. A background
-        // disconnect temporarily installs that tab, so restore the visible tab's
-        // shared render state after runIn() returns.
-        client.entityRenderDispatcher.setLevel(null);
-        if (!background && client.particleEngine != null) {
-            client.particleEngine.setLevel(null);
-        }
-        if (!background) {
-            KeyMapping.releaseAll();
-            client.getSoundManager().stop();
-        }
-        client.setScreen(context.screen);
-
-        if (closeConnection) {
-            if (listener != null) {
-                listener.close();
-            }
-            if (network != null && (network.isConnected() || network.isConnecting())) {
-                network.disconnect(reason);
-            }
-            if (pending != null && pending != network
-                && (pending.isConnected() || pending.isConnecting())) {
-                pending.disconnect(reason);
-            }
-        }
-
-        if (context.disconnectingConnection == null && context.disconnectingPendingConnection == null) {
-            context.disconnecting = false;
-        }
-
-        LOGGER.info(
-            "Tabby: disconnected only tab {} (connectionCloseRequested={}, otherTabs={})",
-            context.id(),
-            closeConnection,
-            TabRegistry.size() - 1
-        );
-    }
-
-    private static void restoreVisibleSharedRenderState(int disconnectedTabId) {
-        if (client == null || disconnectedTabId == TabRegistry.activeId()) {
-            return;
-        }
-
-        TabContext visible = TabRegistry.get(TabRegistry.activeId());
-        if (visible != null) {
-            restoreClientGlobals(visible);
-        }
+        return TabConnectionManager.handleListenerDisconnect(listener, details);
     }
 
     public static void closeTab(int tabId) {
-        if (client == null || !TabRegistry.contains(tabId)) {
-            return;
-        }
-
-        if (tabId == TabRegistry.activeId() && TabRegistry.size() > 1) {
-            List<Integer> ids = new ArrayList<>(TabRegistry.ids());
-            int currentIndex = ids.indexOf(tabId);
-            switchTo(ids.get((currentIndex + 1) % ids.size()));
-        }
-
-        TabContext closing = TabRegistry.remove(tabId);
-        if (closing == null) {
-            return;
-        }
-        disposeTab(closing, true);
-
-        if (TabRegistry.isEmpty()) {
-            TabContext menu = TabContext.createEmpty(client, TabRegistry.nextId());
-            TabRegistry.put(menu.id(), menu);
-            TabRegistry.setActiveId(menu.id());
-            menu.applyTo(client, false);
-            client.setScreen(menu.screen);
-            menu.captureFrom(client);
-            LOGGER.debug("Closed final tab; returned to main menu context {}", menu.id());
-        } else if (TabRegistry.activeId() == tabId) {
-            switchTo(TabRegistry.firstId());
-        }
-    }
-
-    private static void disposeTab(TabContext context, boolean closeRenderer) {
-        int id = context.id();
-        TabMemoryUsage.remove(id);
-
-        ConnectionOwnershipRegistry.removeTab(id);
-
-        stopIntegratedServerForTab(context);
-        TabRendererCompatibility.suspendVoxyRenderer(context.levelRenderer, id);
-
-        Connection pending = context.pendingConnection;
-        Connection connection = context.networkConnection;
-        if (pending != null && pending != connection) {
-            pending.disconnect(Component.literal("Tab closed"));
-        }
-        if (connection != null) {
-            connection.disconnect(Component.literal("Tab closed"));
-        }
-        if (context.level != null) {
-            context.level.disconnect();
-        }
-        if (closeRenderer && context.levelRenderer != null) {
-            context.levelRenderer.close();
-        }
-    }
-
-    private static boolean isSingleplayerTab(TabContext context) {
-        if (context == null) {
-            return false;
-        }
-        if (context.localServer) {
-            return true;
-        }
-
-        Connection connection = context.networkConnection;
-        if (connection == null && context.clientConnection != null) {
-            connection = context.clientConnection.getConnection();
-        }
-        if (connection == null) {
-            connection = context.pendingConnection;
-        }
-        return connection != null && connection.isMemoryConnection();
-    }
-
-    private static boolean hasSingleplayerState(TabContext context) {
-        return context != null && (
-            context.level != null
-                || context.player != null
-                || context.connecting
-                || context.pendingConnection != null
-                    && (context.pendingConnection.isConnected() || context.pendingConnection.isConnecting())
-                || context.networkConnection != null
-                    && (context.networkConnection.isConnected() || context.networkConnection.isConnecting())
-        );
-    }
-
-    private static void stopIntegratedServerForTab(TabContext context) {
-        if (client == null || !isSingleplayerTab(context)) {
-            return;
-        }
-
-        boolean anotherTabOwnsLocalWorld = TabRegistry.values().stream()
-            .anyMatch(other -> other.id() != context.id()
-                && isSingleplayerTab(other)
-                && hasSingleplayerState(other));
-        if (anotherTabOwnsLocalWorld) {
-            LOGGER.debug("Keeping integrated server alive while another single-player tab remains open");
-            return;
-        }
-
-        MinecraftAccessor accessor = (MinecraftAccessor) client;
-        IntegratedServer server = accessor.tabby$getSingleplayerServer();
-        if (server != null) {
-            accessor.tabby$setSingleplayerServer(null);
-            // Do not let Minecraft.close() shut down the shared IO/chunk executors
-            // while the integrated server is still saving chunks on its own thread.
-            // halt(true) joins the server thread after scheduling the player-removal task.
-            server.halt(true);
-            if (!server.isShutdown()) {
-                throw new IllegalStateException(
-                    "Integrated server for tab " + context.id() + " did not fully stop"
-                );
-            }
-            LOGGER.debug("Stopped integrated server owned by tab {} and joined its server thread", context.id());
-        }
-        accessor.tabby$setLocalServer(false);
-        context.localServer = false;
+        TabLifecycleManager.closeTab(tabId);
     }
 
     public static void shutdown() {
@@ -1016,7 +627,7 @@ public final class TabManager {
         shuttingDownClient.getSoundManager().stop();
 
         for (TabContext context : List.copyOf(TabRegistry.values())) {
-            disposeTab(context, context.id() != TabRegistry.activeId());
+            TabLifecycleManager.disposeTab(context, context.id() != TabRegistry.activeId());
         }
 
         TabRegistry.clear();
@@ -1028,39 +639,15 @@ public final class TabManager {
     }
 
     public static boolean hasInactiveSingleplayerWorld() {
-        if (client == null) {
-            return false;
-        }
-        return TabRegistry.values().stream().anyMatch(context ->
-            context.id() != TabRegistry.activeId()
-                && isSingleplayerTab(context)
-                && hasSingleplayerState(context)
-        );
+        return TabLifecycleManager.hasInactiveSingleplayerWorld();
     }
 
     public static boolean shouldBlockSingleplayerWorldStart() {
-        return hasInactiveSingleplayerWorld();
+        return TabLifecycleManager.shouldBlockSingleplayerWorldStart();
     }
 
     public static boolean shouldPreserveIntegratedServerDuringDisconnect() {
-        if (client == null
-            || ((MinecraftAccessor) client).tabby$getSingleplayerServer() == null
-            || !hasInactiveSingleplayerWorld()) {
-            return false;
-        }
-
-        TabContext active = TabRegistry.get(TabRegistry.activeId());
-        boolean activeOwnsMemoryConnection = isSingleplayerTab(active);
-        boolean preserve = active != null && !activeOwnsMemoryConnection;
-        LOGGER.debug(
-            "Disconnect preservation check: activeTab={}, activeLocal={}, inactiveLocalWorld={}, integratedServerPresent={}, preserve={}",
-            active == null ? -1 : active.id(),
-            activeOwnsMemoryConnection,
-            hasInactiveSingleplayerWorld(),
-            ((MinecraftAccessor) client).tabby$getSingleplayerServer() != null,
-            preserve
-        );
-        return preserve;
+        return TabLifecycleManager.shouldPreserveIntegratedServerDuringDisconnect();
     }
 
     public static void showSingleplayerWorldBlockedNotice() {
@@ -1186,7 +773,7 @@ public final class TabManager {
             return task;
         }
 
-        int ownerId = ownerIdFor(listener);
+        int ownerId = ConnectionOwnershipRegistry.ownerIdFor(listener);
         if (ownerId < 0) {
             return task;
         }
@@ -1204,391 +791,28 @@ public final class TabManager {
      * Called before vanilla's ConnectScreen disconnects the current connection.
      * Returning true prevents a duplicate attempt from disrupting the existing tab.
      */
-    /**
-     * Vanilla disconnects the global client before every server connection attempt.
-     * That is correct only when the currently selected tab owns the world being
-     * disconnected. A freshly-created empty tab must not tear down an integrated
-     * server or client world retained by another tab.
-     */
     public static void disconnectCurrentTabBeforeConnecting(Minecraft minecraft) {
-        if (client == null || minecraft != client) {
-            minecraft.disconnect();
-            return;
-        }
-
-        TabContext context = TabRegistry.get(currentContextId());
-        if (context == null) {
-            minecraft.disconnect();
-            return;
-        }
-
-        Connection pending = context.pendingConnection;
-        Connection network = context.networkConnection;
-        boolean livePending = pending != null && (pending.isConnected() || pending.isConnecting());
-        boolean liveNetwork = network != null && (network.isConnected() || network.isConnecting());
-        boolean ownsWorld = context.level != null
-            || context.player != null
-            || context.gameMode != null
-            || context.localServer;
-        boolean ownsLiveListener = context.clientConnection != null
-            && context.clientConnection.getConnection().isConnected();
-
-        if (ownsWorld || ownsLiveListener || liveNetwork || livePending) {
-            LOGGER.debug(
-                "Running vanilla disconnect for tab {} before replacing its own connection (world={}, localServer={}, liveConnection={})",
-                context.id(),
-                context.level != null,
-                context.localServer,
-                ownsLiveListener || liveNetwork || livePending
-            );
-            minecraft.disconnect();
-            return;
-        }
-
-        // An empty tab has no client-side world state to disconnect. Do not run
-        // Minecraft.disconnect(), because its singleton cleanup may clear the
-        // retained world or integrated-server state of an inactive tab.
-        Connection nativePending = ((MinecraftAccessor) minecraft).tabby$getPendingConnection();
-        if (nativePending != null && nativePending == pending) {
-            nativePending.disconnect(Component.literal("Tab connection replaced"));
-            ((MinecraftAccessor) minecraft).tabby$setPendingConnection(null);
-        }
-        LOGGER.debug(
-            "Skipped vanilla global disconnect for empty tab {} before opening a new server connection",
-            context.id()
-        );
+        TabConnectionManager.disconnectCurrentTabBeforeConnecting(minecraft);
     }
 
     public static boolean handleConnectionAttempt(ServerAddress address, ServerData serverData) {
-        if (client == null || address == null || serverData == null) {
-            return false;
-        }
-
-        int targetId = currentContextId();
-        TabContext target = TabRegistry.get(targetId);
-        if (target == null) {
-            return false;
-        }
-
-        String username = client.getUser().getName();
-        for (TabContext existing : TabRegistry.values()) {
-            if (existing.id() == targetId
-                || !username.equals(existing.playerName)
-                || !hasLiveConnectionAttempt(existing)
-                || !sameServer(existing.serverData, address)) {
-                continue;
-            }
-
-            String existingTitle = existing.title();
-            if (existingTitle == null || existingTitle.isBlank()) {
-                existingTitle = address.toString();
-            }
-            SystemToast.add(
-                client.getToastManager(),
-                SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
-                Component.literal("Tabby"),
-                Component.literal("This server is already open in tab '" + existingTitle + "'.")
-            );
-            LOGGER.warn(
-                "Blocked duplicate connection to {} for player {} (already open in tab {})",
-                address,
-                username,
-                existing.id()
-            );
-            return true;
-        }
-
-        Connection oldConnection = target.networkConnection;
-        if (oldConnection == null || (!oldConnection.isConnected() && !oldConnection.isConnecting())) {
-            oldConnection = target.pendingConnection;
-        }
-        target.replacingConnection = oldConnection != null
-            && (oldConnection.isConnected() || oldConnection.isConnecting())
-                ? oldConnection
-                : null;
-        target.serverData = serverData;
-        target.playerName = username;
-        target.connecting = true;
-
-        String title = serverData.name;
-        if (title == null || title.isBlank()) {
-            title = serverData.ip;
-        }
-        target.setTitle(title == null || title.isBlank() ? address.toString() : title);
-        LOGGER.debug("Tab {} is connecting to {}", target.id(), address);
-        return false;
-    }
-
-    private static boolean sameServer(ServerData existingData, ServerAddress address) {
-        if (existingData == null || existingData.ip == null || existingData.ip.isBlank()) {
-            return false;
-        }
-
-        ServerAddress existingAddress = ServerAddress.parseString(existingData.ip);
-        return existingAddress.getPort() == address.getPort()
-            && existingAddress.getHost().equalsIgnoreCase(address.getHost());
-    }
-
-    private static boolean hasLiveConnectionAttempt(TabContext context) {
-        return context.connecting
-            || context.networkConnection != null
-                && (context.networkConnection.isConnected() || context.networkConnection.isConnecting())
-            || context.pendingConnection != null
-                && (context.pendingConnection.isConnected() || context.pendingConnection.isConnecting());
-    }
-
-    private static int uniqueConnectingTabId() {
-        int candidate = -1;
-        for (TabContext context : TabRegistry.values()) {
-            if (!context.connecting) {
-                continue;
-            }
-            if (candidate >= 0) {
-                return -1;
-            }
-            candidate = context.id();
-        }
-        return candidate;
+        return TabConnectionManager.handleConnectionAttempt(address, serverData);
     }
 
     public static boolean onScreenChangeRequested(Screen screen) {
-        if (client == null
-            || screen == null
-            || screen instanceof net.minecraft.client.gui.screens.ConnectScreen
-            || screen instanceof net.minecraft.client.gui.screens.ProgressScreen) {
-            // ConnectScreen.startConnecting calls Minecraft.disconnect(), which briefly installs
-            // a ProgressScreen before it installs the new ConnectScreen. Keep the attempt marker
-            // through that vanilla transition so connection ownership remains bound to this tab.
-            return false;
-        }
-
-        TabContext context = TabRegistry.get(currentContextId());
-        if (context == null || !context.connecting) {
-            return false;
-        }
-
-        if (context.replacingConnection != null
-            && screen instanceof net.minecraft.client.gui.screens.DisconnectedScreen) {
-            // The previous listener may publish a late disconnect screen while the new
-            // ConnectScreen is active. Do not let the stale screen interrupt the new attempt.
-            LOGGER.debug("Suppressed stale disconnect screen while tab {} replaces a connection", context.id());
-            return true;
-        }
-
-        if (context.replacingConnection != null) {
-            return false;
-        }
-
-        if (context.networkConnection == null || !context.networkConnection.isConnected()) {
-            context.connecting = false;
-            LOGGER.debug("Cleared failed or cancelled connection attempt for tab {}", context.id());
-        }
-        return false;
+        return TabConnectionManager.onScreenChangeRequested(screen);
     }
 
     public static void onConnectionDisconnected(Connection connection) {
-        Minecraft currentClient = client;
-        if (currentClient == null || connection == null) {
-            return;
-        }
-
-        Runnable cleanup = () -> cleanupDisconnectedConnection(connection);
-        if (currentClient.isSameThread()) {
-            cleanup.run();
-        } else {
-            currentClient.execute(cleanup);
-        }
-    }
-
-    private static void cleanupDisconnectedConnection(Connection connection) {
-        PacketListener disconnectedListener = connection.getPacketListener();
-
-        for (TabContext context : List.copyOf(TabRegistry.values())) {
-            boolean replacingOldConnection = context.connecting && context.replacingConnection == connection;
-            boolean ownsConnection = context.networkConnection == connection
-                || context.pendingConnection == connection
-                || context.replacingConnection == connection
-                || context.disconnectingConnection == connection
-                || context.disconnectingPendingConnection == connection
-                || context.clientConnection != null
-                    && context.clientConnection.getConnection() == connection;
-            if (!ownsConnection) {
-                continue;
-            }
-
-            if (context.localServer && context.level != null && !context.worldTransitioning) {
-                LOGGER.warn(
-                    "Disconnect cleanup reached integrated-world tab {} while active tab {} owns the client (localServer={}, level={}, connectionMatch={}, listenerMatch={})",
-                    context.id(),
-                    TabRegistry.activeId(),
-                    context.localServer,
-                    System.identityHashCode(context.level),
-                    context.networkConnection == connection,
-                    context.clientConnection != null && context.clientConnection.getConnection() == connection
-                );
-            }
-
-            if (context.networkConnection == connection) {
-                context.networkConnection = null;
-            }
-            if (context.pendingConnection == connection) {
-                context.pendingConnection = null;
-            }
-            if (context.clientConnection != null
-                && context.clientConnection.getConnection() == connection) {
-                context.clientConnection = null;
-            }
-            if (context.packetListener == disconnectedListener) {
-                context.packetListener = null;
-            }
-
-            if (replacingOldConnection) {
-                context.replacingConnection = null;
-                if (connection.isMemoryConnection()) {
-                    context.localServer = false;
-                }
-                context.level = null;
-                context.player = null;
-                context.gameMode = null;
-                if (context.levelRenderer != null) {
-                    context.levelRenderer.setLevel(null);
-                }
-                // Preserve the new attempt's serverData/title and its connecting marker.
-                LOGGER.debug("Released replaced connection from tab {}", context.id());
-                continue;
-            }
-
-            if (context.replacingConnection == connection) {
-                context.replacingConnection = null;
-            }
-            if (context.disconnectingConnection == connection) {
-                context.disconnectingConnection = null;
-            }
-            if (context.disconnectingPendingConnection == connection) {
-                context.disconnectingPendingConnection = null;
-            }
-            context.disconnecting = context.disconnectingConnection != null
-                || context.disconnectingPendingConnection != null;
-            context.connecting = false;
-            context.level = null;
-            context.player = null;
-            context.gameMode = null;
-            if (connection.isMemoryConnection()) {
-                context.localServer = false;
-                if (client != null && context.id() == TabRegistry.activeId()) {
-                    ((MinecraftAccessor) client).tabby$setLocalServer(false);
-                }
-            }
-            if (context.levelRenderer != null) {
-                context.levelRenderer.setLevel(null);
-            }
-
-            LOGGER.info(
-                "Cleared disconnected connection state for tab {} ({})",
-                context.id(),
-                context.title()
-            );
-        }
-
-        ConnectionOwnershipRegistry.removeConnection(connection, disconnectedListener);
+        TabConnectionManager.onConnectionDisconnected(connection);
     }
 
     public static void onConnectionCreated(Connection connection) {
-        if (connection == null) {
-            return;
-        }
-        int ownerId = uniqueConnectingTabId();
-        if (ownerId < 0) {
-            ownerId = currentContextId();
-        }
-        ConnectionOwnershipRegistry.registerConnection(connection, ownerId);
+        TabConnectionManager.onConnectionCreated(connection);
     }
 
     public static void onListenerAssigned(Connection connection, PacketListener listener) {
-        if (connection == null || listener == null) {
-            return;
-        }
-
-        final int ownerId = ConnectionOwnershipRegistry.registerListener(
-            connection,
-            listener,
-            currentContextId()
-        );
-
-        Minecraft currentClient = client;
-        if (currentClient == null) {
-            return;
-        }
-
-        currentClient.execute(() -> {
-            TabContext context = TabRegistry.get(ownerId);
-            if (context == null) {
-                return;
-            }
-
-            if (listener instanceof ClientCommonPacketListenerImpl) {
-                context.localServer = connection.isMemoryConnection();
-                context.networkConnection = connection;
-                if (listener instanceof TickablePacketListener tickable) {
-                    context.packetListener = tickable;
-                }
-            }
-            if (listener instanceof ClientPacketListener playListener) {
-                context.connecting = false;
-                context.replacingConnection = null;
-                context.pendingConnection = null;
-                if (context.playerName == null || context.playerName.isBlank()) {
-                    context.playerName = currentClient.getUser().getName();
-                }
-                context.networkConnection = connection;
-                context.clientConnection = playListener;
-                context.packetListener = playListener;
-                context.serverData = playListener.getServerData();
-                if (context.serverData != null) {
-                    String serverTitle = context.serverData.name;
-                    if (serverTitle == null || serverTitle.isBlank()) {
-                        serverTitle = context.serverData.ip;
-                    }
-                    context.setTitle(serverTitle == null || serverTitle.isBlank() ? "Server" : serverTitle);
-                }
-            }
-            LOGGER.debug("Assigned {} to tab {}", listener.getClass().getSimpleName(), ownerId);
-        });
-    }
-
-    private static int ownerIdFor(PacketListener listener) {
-        return ConnectionOwnershipRegistry.ownerIdFor(listener);
-    }
-
-    private static void tickBackgroundConnections() {
-        if (client == null) {
-            return;
-        }
-
-        int selectedId = TabRegistry.activeId();
-        Connection nativePendingConnection = ((MinecraftAccessor) client).tabby$getPendingConnection();
-
-        for (TabContext context : List.copyOf(TabRegistry.values())) {
-            if (context.id() == selectedId) {
-                // Vanilla ticks pendingConnection itself, but the login-to-configuration
-                // transition can clear it before a player/world exists. Keep that active
-                // connection progressing until the play listener has installed the world.
-                if (client.level == null
-                    && client.player == null
-                    && nativePendingConnection == null
-                    && context.networkConnection != null
-                    && context.networkConnection.isConnected()) {
-                    runIn(context.id(), context.networkConnection::tick);
-                }
-                continue;
-            }
-
-            if (context.networkConnection != null && context.networkConnection.isConnected()) {
-                runIn(context.id(), context.networkConnection::tick);
-            } else if (context.pendingConnection != null && context.pendingConnection.isConnected()) {
-                runIn(context.id(), context.pendingConnection::tick);
-            }
-        }
+        TabConnectionManager.onListenerAssigned(connection, listener);
     }
 
     /**
@@ -1599,7 +823,7 @@ public final class TabManager {
         return TabContextExecutor.isContextInstalled(client != null, TabRegistry.activeId(), tabId);
     }
 
-    private static int currentContextId() {
+    static int currentContextId() {
         return TabContextExecutor.currentContextId(TabRegistry.activeId());
     }
 
