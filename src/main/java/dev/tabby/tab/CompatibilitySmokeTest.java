@@ -1,5 +1,7 @@
 package dev.tabby.tab;
 
+import dev.tabby.compat.SimpleVoiceChatCompatibility;
+
 import dev.tabby.mixin.MinecraftAccessor;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
@@ -89,6 +91,12 @@ public final class CompatibilitySmokeTest {
             require(TabManager.activeId() == 1, "Creating a second context did not select tab 1");
             require(TabManager.contexts().size() == 2, "Expected exactly two contexts in compatibility test");
             require(context(0).levelRenderer != context(1).levelRenderer, "Tab renderers were unexpectedly shared");
+            if ("voicechat".equals(MOD_ID)) {
+                require(
+                    SimpleVoiceChatCompatibility.verifyBackgroundCallbacksAreSuppressed(0),
+                    "Simple Voice Chat JOIN/DISCONNECT callbacks were not isolated from the inactive tab"
+                );
+            }
             validateActiveContext(client);
             phase = Phase.SWITCHING;
             switchTicks = 0;
@@ -136,6 +144,14 @@ public final class CompatibilitySmokeTest {
             require(client.player == menuTab.player, "Menu tab player state was not restored");
             require(client.getConnection() == null, "Menu tab inherited the network connection");
         }
+
+        if ("voicechat".equals(MOD_ID)) {
+            boolean voiceSessionExpected = TabManager.activeId() == 0 && isJoined(networkTab);
+            require(
+                SimpleVoiceChatCompatibility.hasActiveClientSession() == voiceSessionExpected,
+                "Simple Voice Chat session does not follow the selected tab"
+            );
+        }
     }
 
     private static void verifyExpectedModLoaded() {
@@ -152,6 +168,12 @@ public final class CompatibilitySmokeTest {
         }
         if ("modmenu".equals(MOD_ID)) {
             dev.tabby.compat.ModMenuIntegrationSmokeTest.verify();
+        }
+        if ("voicechat".equals(MOD_ID)) {
+            require(
+                SimpleVoiceChatCompatibility.isAvailable(),
+                "Simple Voice Chat compatibility bridge was not applied"
+            );
         }
         LOGGER.info("Compatibility test: verified optional mod '{}' is loaded", MOD_ID);
     }

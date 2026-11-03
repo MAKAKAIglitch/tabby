@@ -4,6 +4,7 @@ import dev.tabby.mixin.MinecraftAccessor;
 import dev.tabby.mixin.ClientLevelAccessor;
 import dev.tabby.mixin.LevelRendererAccessor;
 import dev.tabby.mixin.ParticleEngineAccessor;
+import dev.tabby.compat.SimpleVoiceChatCompatibility;
 import net.minecraft.client.KeyMapping;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.gui.screens.Screen;
@@ -613,6 +614,7 @@ public final class TabManager {
             return;
         }
 
+        SimpleVoiceChatCompatibility.onActiveTabDisconnected();
         LOGGER.debug("Shutting down Tabby; closing {} tab contexts", TabRegistry.size());
         if (TabbyConfig.restoreServerAddresses()) {
             List<String> addresses = new ArrayList<>();
@@ -756,6 +758,7 @@ public final class TabManager {
             KeyMapping.releaseAll();
             client.mouseHandler.setIgnoreFirstMove();
             target.captureFrom(client);
+            SimpleVoiceChatCompatibility.onActiveTabChanged(client);
             LOGGER.debug("Switched active tab to {} ({})", target.id(), target.title());
         } catch (RuntimeException | Error exception) {
             LOGGER.debug("Failed to switch to tab {}", tabId, exception);

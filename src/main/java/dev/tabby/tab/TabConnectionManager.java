@@ -1,5 +1,7 @@
 package dev.tabby.tab;
 
+import dev.tabby.compat.SimpleVoiceChatCompatibility;
+
 import dev.tabby.mixin.MinecraftAccessor;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -265,6 +267,10 @@ final class TabConnectionManager {
 
         if (context.disconnectingConnection == null && context.disconnectingPendingConnection == null) {
             context.disconnecting = false;
+        }
+
+        if (!background) {
+            SimpleVoiceChatCompatibility.onActiveTabDisconnected();
         }
 
         LOGGER.info(

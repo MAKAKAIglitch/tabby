@@ -15,6 +15,7 @@ The architecture separates the state boundaries that must remain correct during 
 | `TabLifecycleManager` | Tab creation, ordering, closing, resource disposal, integrated-server ownership and shutdown | Packet routing or UI rendering |
 | `TabConnectionManager` | Connect attempts, disconnect policy, connection callbacks, background connection ticks, protocol-phase movement guard | Tab identity storage or tab ordering |
 | `TabDamageNotificationManager` | Per-listener inactive-player damage filtering, event coalescing, chat and sound alerts | Packet ownership or active-tab lifecycle |
+| `SimpleVoiceChatCompatibility` | Optional single-session SVC lifecycle rebinding to the selected tab; hidden-tab callback suppression is implemented by an optional mixin | Independent simultaneous voice sessions per tab; compile-time SVC dependency |
 | `TabContext` | Snapshot of client fields belonging to one logical tab | Scheduling, connection routing, or tab ordering |
 | `TabContextExecutor` | Scoped global-state installation, nested execution marker, restoration after packet tasks | Ownership discovery or tab lifecycle |
 | `ConnectionOwnershipRegistry` | Identity mapping from `Connection` / `PacketListener` to tab IDs | Disconnect policy or Minecraft field mutation |
@@ -28,8 +29,9 @@ The architecture separates the state boundaries that must remain correct during 
 3. The owner of a packet task is resolved when the task is queued, not when it is later executed.
 4. Every outermost `runIn` scope marks its execution context. Nested `runIn` scopes restore the exact transient client state and do not publish half-completed login state into a persistent snapshot.
 5. Background packet handlers never replace the visible screen.
-6. Context restoration happens in a `finally` path, including when a packet task throws.
-7. Only the selected tab's renderer enters the world-rendering pipeline. Optional-mod integrations remain reflection- or mixin-based so they do not add required runtime dependencies.
+6. Client-global voice-chat state belongs to the selected tab only. Background SVC JOIN/DISCONNECT callbacks are ignored, and selecting a different world rebinds the one SVC session.
+7. Context restoration happens in a `finally` path, including when a packet task throws.
+8. Only the selected tab's renderer enters the world-rendering pipeline. Optional-mod integrations remain reflection- or mixin-based so they do not add required runtime dependencies.
 
 ## Extension rules
 
