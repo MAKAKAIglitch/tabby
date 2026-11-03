@@ -115,10 +115,11 @@ public final class TabManager {
 
         tickRestoredServerAddresses(minecraft);
         TabConnectionManager.tickBackgroundConnections();
+        TabDamageNotificationManager.tick(minecraft);
         if (TabbyConfig.showHudInfo()) {
-            if (++memoryRefreshTicks >= 20) {
+            if (++memoryRefreshTicks >= 40) {
                 memoryRefreshTicks = 0;
-                TabMemoryUsage.refresh(List.copyOf(TabRegistry.values()));
+                TabMemoryUsage.refresh(TabRegistry.values());
             }
         } else {
             // The diagnostic HUD is off by default; skip periodic chunk/entity counting
@@ -627,12 +628,13 @@ public final class TabManager {
         KeyMapping.releaseAll();
         shuttingDownClient.getSoundManager().stop();
 
-        for (TabContext context : List.copyOf(TabRegistry.values())) {
+        for (TabContext context : TabRegistry.values()) {
             TabLifecycleManager.disposeTab(context, context.id() != TabRegistry.activeId());
         }
 
         TabRegistry.clear();
         TabMemoryUsage.clear();
+        TabDamageNotificationManager.clear();
         ConnectionOwnershipRegistry.clear();
         TabContextExecutor.clearCurrentThread();
         TabRegistry.setActiveId(-1);
@@ -695,7 +697,7 @@ public final class TabManager {
     }
 
     private static void switchToIndex(int index) {
-        List<Integer> ids = new ArrayList<>(TabRegistry.ids());
+        List<Integer> ids = TabRegistry.ids();
         if (index >= 0 && index < ids.size()) {
             switchTo(ids.get(index));
         }
@@ -706,7 +708,7 @@ public final class TabManager {
             return;
         }
 
-        List<Integer> ids = new ArrayList<>(TabRegistry.ids());
+        List<Integer> ids = TabRegistry.ids();
         int currentIndex = ids.indexOf(TabRegistry.activeId());
         switchTo(ids.get((currentIndex + 1) % ids.size()));
     }
@@ -816,6 +818,10 @@ public final class TabManager {
         TabConnectionManager.onListenerAssigned(connection, listener);
     }
 
+    public static void onPlayerDamage(ClientPacketListener listener, int entityId) {
+        TabDamageNotificationManager.onPlayerDamage(listener, entityId);
+    }
+
     public static boolean shouldSuppressOutOfPhaseMovement(Packet<?> packet, ConnectionProtocol phase) {
         return TabConnectionManager.shouldSuppressOutOfPhaseMovement(packet, phase);
     }
@@ -838,6 +844,6 @@ public final class TabManager {
     }
 
     public static List<TabContext> contexts() {
-        return List.copyOf(TabRegistry.values());
+        return TabRegistry.values();
     }
 }

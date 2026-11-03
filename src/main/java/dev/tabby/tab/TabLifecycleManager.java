@@ -133,6 +133,7 @@ final class TabLifecycleManager {
         Minecraft client = TabManager.clientInstance();
         int id = context.id();
         TabMemoryUsage.remove(id);
+        TabDamageNotificationManager.removeTab(id);
 
         ConnectionOwnershipRegistry.removeTab(id);
 

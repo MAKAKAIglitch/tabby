@@ -494,7 +494,7 @@ final class TabConnectionManager {
         Minecraft client = TabManager.clientInstance();
         PacketListener disconnectedListener = connection.getPacketListener();
 
-        for (TabContext context : List.copyOf(TabRegistry.values())) {
+        for (TabContext context : TabRegistry.values()) {
             boolean replacingOldConnection = context.connecting && context.replacingConnection == connection;
             boolean ownsConnection = context.networkConnection == connection
                 || context.pendingConnection == connection
@@ -658,7 +658,7 @@ final class TabConnectionManager {
         int selectedId = TabRegistry.activeId();
         Connection nativePendingConnection = ((MinecraftAccessor) client).tabby$getPendingConnection();
 
-        for (TabContext context : List.copyOf(TabRegistry.values())) {
+        for (TabContext context : TabRegistry.values()) {
             if (context.id() == selectedId) {
                 // Vanilla ticks pendingConnection itself, but the login-to-configuration
                 // transition can clear it before a player/world exists. Keep that active

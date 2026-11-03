@@ -44,6 +44,8 @@ public final class TabbyConfig {
         }
 
         data = loaded == null ? new ConfigData() : loaded;
+        // Preserve the default-on behaviour when older JSON files do not contain this setting.
+        if (data.notifyBackgroundDamage == null) data.notifyBackgroundDamage = Boolean.TRUE;
         data.maxBackgroundTabs = Math.max(1, Math.min(MAX_BACKGROUND_TABS, data.maxBackgroundTabs));
         data.keyCreateTab = normalizeKey(data.keyCreateTab, GLFW.GLFW_KEY_T);
         data.keyCloseTab = normalizeKey(data.keyCloseTab, GLFW.GLFW_KEY_W);
@@ -93,6 +95,10 @@ public final class TabbyConfig {
         return data.showHudInfo;
     }
 
+    public static synchronized boolean notifyBackgroundDamage() {
+        return Boolean.TRUE.equals(data.notifyBackgroundDamage);
+    }
+
     public static synchronized int barScalePercent() {
         return data.barScalePercent;
     }
@@ -107,6 +113,11 @@ public final class TabbyConfig {
 
     public static synchronized void setShowHudInfo(boolean enabled) {
         data.showHudInfo = enabled;
+        save();
+    }
+
+    public static synchronized void setNotifyBackgroundDamage(boolean enabled) {
+        data.notifyBackgroundDamage = enabled;
         save();
     }
 
@@ -249,6 +260,7 @@ public final class TabbyConfig {
         public boolean showInMenus = true;
         public String inGameBarMode = "hover_or_alt";
         public boolean showHudInfo = false;
+        public Boolean notifyBackgroundDamage = Boolean.TRUE;
         public int barScalePercent = 100;
         public String barColorPreset = "blue";
         public int barOpacityPercent = 90;

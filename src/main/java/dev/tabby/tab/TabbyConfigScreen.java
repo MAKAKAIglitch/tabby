@@ -26,6 +26,7 @@ public final class TabbyConfigScreen extends Screen {
     private Button createShortcutButton;
     private Button closeShortcutButton;
     private Button nextShortcutButton;
+    private Button damageNotificationButton;
 
     public TabbyConfigScreen(Screen parent) {
         super(Component.literal("Tabby Settings"));
@@ -82,6 +83,15 @@ public final class TabbyConfigScreen extends Screen {
             centerX + 3, 150, halfWidth, Binding.CLOSE_TAB));
         this.nextShortcutButton = this.addRenderableWidget(this.keyButton(
             centerX - 130, 176, halfWidth, Binding.NEXT_TAB));
+
+        this.damageNotificationButton = this.addRenderableWidget(Button.builder(
+            this.damageNotificationMessage(),
+            button -> {
+                TabbyConfig.setNotifyBackgroundDamage(!TabbyConfig.notifyBackgroundDamage());
+                this.statusMessage = Component.literal("Saved.");
+                this.refreshMessages();
+            }
+        ).bounds(centerX + 3, 176, halfWidth, 20).build());
 
         this.addRenderableWidget(Button.builder(
             Component.literal("Done"),
@@ -175,6 +185,11 @@ public final class TabbyConfigScreen extends Screen {
         return Component.literal("HUD info plaque: " + (TabbyConfig.showHudInfo() ? "On" : "Off"));
     }
 
+    private Component damageNotificationMessage() {
+        return Component.literal("Background damage alerts: "
+            + (TabbyConfig.notifyBackgroundDamage() ? "On" : "Off"));
+    }
+
     private Component barSizeMessage() {
         return Component.literal("Tab bar size: " + TabbyConfig.barScalePercent() + "%");
     }
@@ -260,6 +275,9 @@ public final class TabbyConfigScreen extends Screen {
         }
         if (this.nextShortcutButton != null) {
             this.nextShortcutButton.setMessage(this.bindingMessage(Binding.NEXT_TAB));
+        }
+        if (this.damageNotificationButton != null) {
+            this.damageNotificationButton.setMessage(this.damageNotificationMessage());
         }
     }
 

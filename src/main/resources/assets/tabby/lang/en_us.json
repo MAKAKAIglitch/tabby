@@ -1,3 +1,5 @@
 {
-  "category.tabby": "Tabby"
+  "category.tabby": "Tabby",
+  "tabby.notification.damage": "Damage received on tab: %s",
+  "tabby.notification.damage.multiple": "Damage received %2$s times on tab: %1$s"
 }

@@ -167,6 +167,7 @@ public final class NetworkSmokeTest {
             TabManager.switchTo(1);
             validateConnections(client);
             verifyTabStripInteractions(client);
+            verifyBackgroundDamageNotificationIsolation();
 
             prepareContentIsolation();
             LOGGER.info("Network smoke test: seeded different chat messages, inventory items, and named entities on both servers");
@@ -176,6 +177,42 @@ public final class NetworkSmokeTest {
             fail("Tab 1 did not join server B within " + JOIN_TIMEOUT_TICKS + " ticks: "
                 + connectionState(client, context(1)));
         }
+    }
+
+    private static void verifyBackgroundDamageNotificationIsolation() {
+        int activeId = TabManager.activeId();
+        TabContext active = context(activeId);
+        TabContext background = context(activeId == 0 ? 1 : 0);
+        require(active != null && isJoined(active), "Damage-alert test has no active joined tab");
+        require(background != null && isJoined(background), "Damage-alert test has no background joined tab");
+
+        int backgroundHitsBefore = TabDamageNotificationManager.pendingDamageCount(background.id());
+        TabManager.runIn(background.id(), () ->
+            TabManager.onPlayerDamage(background.clientConnection, background.player.getId())
+        );
+        require(
+            TabDamageNotificationManager.pendingDamageCount(background.id()) == backgroundHitsBefore + 1,
+            "Damage on an inactive tab did not enqueue a Tabby notification"
+        );
+
+        TabManager.runIn(background.id(), () ->
+            TabManager.onPlayerDamage(background.clientConnection, background.player.getId() + 100_000)
+        );
+        require(
+            TabDamageNotificationManager.pendingDamageCount(background.id()) == backgroundHitsBefore + 1,
+            "Damage to a non-player entity incorrectly notified the tab owner"
+        );
+
+        TabManager.runIn(active.id(), () ->
+            TabManager.onPlayerDamage(active.clientConnection, active.player.getId())
+        );
+        require(
+            TabDamageNotificationManager.pendingDamageCount(active.id()) == 0,
+            "Damage on the active tab incorrectly generated a background alert"
+        );
+
+        TabDamageNotificationManager.clearPending(background.id());
+        LOGGER.info("Network smoke test: only damage to the LocalPlayer on an inactive tab queues an alert");
     }
 
     private static void prepareContentIsolation() {
