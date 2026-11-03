@@ -26,6 +26,8 @@ Inactive tab renderers are explicitly blocked at `LevelRenderer.renderLevel`; th
 
 
 **Voxy memory-pressure mitigation (pending real-mod validation).** The supplied client log shows Voxy allocating a 4095 MiB geometry buffer while Tabby changes/disconnects a tab. Tabby now suspends Voxy's per-`LevelRenderer` render system whenever a tab becomes inactive and recreates it when that tab is selected; the optional Voxy hook is reflection-based and adds no hard dependency. The Voxy and Simple Voice Chat binaries from the affected modpack are not part of the current CI compatibility matrix, so this mitigation still needs a run in that exact modpack and on the user's GPU. Simple Voice Chat also uses client-global audio-channel state; disconnecting one server can clear the current voice channels independently of the Minecraft world connections.
+**Protocol-phase safety.** Tabby checks the live listener phase before sending PLAY-only player/vehicle movement packets. During a `PLAY → CONFIGURATION` transition, stale movement is suppressed before the Netty encoder, and a warning identifies the connection phase/listener instead of triggering an unknown-packet encoder failure. The CI network smoke test covers both allowed PLAY and blocked CONFIGURATION decisions.
+
 **Architecture boundaries.** Tab identity/order, tab lifecycle, connection policy, packet execution scopes, network ownership links, and renderer compatibility are separated into dedicated package-level components. The stable public entry point for mixins and UI remains `TabManager`. See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership rules and the client-thread invariants.
 
 ## Requirements

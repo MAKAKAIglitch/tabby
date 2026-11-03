@@ -21,6 +21,11 @@ import dev.tabby.mixin.MinecraftAccessor;
 import dev.tabby.mixin.PauseScreenAccessor;
 import net.minecraft.client.GuiMessage;
 import net.minecraft.network.Connection;
+import net.minecraft.network.ConnectionProtocol;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.network.PacketListener;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
@@ -892,7 +897,42 @@ public final class NetworkSmokeTest {
         );
     }
 
+    private static void validateMovementProtocolGuard() {
+        Packet<?> playerMovement = new ServerboundMovePlayerPacket.Pos(
+            0.0,
+            64.0,
+            0.0,
+            true,
+            false
+        );
+        Packet<?> vehicleMovement = new ServerboundMoveVehiclePacket(
+            new Vec3(0.0, 64.0, 0.0),
+            0.0F,
+            0.0F,
+            true
+        );
+
+        require(
+            TabManager.shouldSuppressOutOfPhaseMovement(playerMovement, ConnectionProtocol.CONFIGURATION),
+            "PLAY-only player movement was not suppressed during CONFIGURATION"
+        );
+        require(
+            TabManager.shouldSuppressOutOfPhaseMovement(vehicleMovement, ConnectionProtocol.CONFIGURATION),
+            "PLAY-only vehicle movement was not suppressed during CONFIGURATION"
+        );
+        require(
+            !TabManager.shouldSuppressOutOfPhaseMovement(playerMovement, ConnectionProtocol.PLAY),
+            "Valid PLAY-phase player movement was incorrectly suppressed"
+        );
+        require(
+            !TabManager.shouldSuppressOutOfPhaseMovement(vehicleMovement, ConnectionProtocol.PLAY),
+            "Valid PLAY-phase vehicle movement was incorrectly suppressed"
+        );
+        LOGGER.info("Network smoke test: PLAY-only movement is gated by the live protocol phase");
+    }
+
     private static void validateConnections(Minecraft client) {
+        validateMovementProtocolGuard();
         TabContext serverA = context(0);
         TabContext serverB = context(1);
         require(isJoined(serverA), "Server A disconnected or lost its client world/player");

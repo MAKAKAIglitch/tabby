@@ -13,7 +13,7 @@ The architecture separates the state boundaries that must remain correct during 
 | `TabManager` | World-transition coordination, tick scheduling, stable API façade for mixins/UI | Tab registry, tab CRUD, connection policy, execution ThreadLocal, connection identity maps, optional renderer reflection |
 | `TabRegistry` | Tab IDs, active ID, ordered membership, read-only lookup view | Network events or context installation |
 | `TabLifecycleManager` | Tab creation, ordering, closing, resource disposal, integrated-server ownership and shutdown | Packet routing or UI rendering |
-| `TabConnectionManager` | Connect attempts, disconnect policy, connection callbacks, background connection ticks | Tab identity storage or tab ordering |
+| `TabConnectionManager` | Connect attempts, disconnect policy, connection callbacks, background connection ticks, protocol-phase movement guard | Tab identity storage or tab ordering |
 | `TabContext` | Snapshot of client fields belonging to one logical tab | Scheduling, connection routing, or tab ordering |
 | `TabContextExecutor` | Scoped global-state installation, nested execution marker, restoration after packet tasks | Ownership discovery or tab lifecycle |
 | `ConnectionOwnershipRegistry` | Identity mapping from `Connection` / `PacketListener` to tab IDs | Disconnect policy or Minecraft field mutation |

@@ -22,6 +22,7 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.network.Connection;
+import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.TickablePacketListener;
 import net.minecraft.network.protocol.Packet;
@@ -814,6 +815,11 @@ public final class TabManager {
     public static void onListenerAssigned(Connection connection, PacketListener listener) {
         TabConnectionManager.onListenerAssigned(connection, listener);
     }
+
+    public static boolean shouldSuppressOutOfPhaseMovement(Packet<?> packet, ConnectionProtocol phase) {
+        return TabConnectionManager.shouldSuppressOutOfPhaseMovement(packet, phase);
+    }
+
 
     /**
      * Returns whether Minecraft's current global fields are installed for the given tab.
