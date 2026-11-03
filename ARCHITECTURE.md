@@ -4,16 +4,17 @@
 
 Tabby keeps one Minecraft client process while maintaining multiple logical client sessions. Minecraft still exposes many client-global fields, so switching tabs is a controlled install/restore operation rather than independent Minecraft instances.
 
-The architecture separates the state boundaries that must remain correct during packet processing, connection teardown, tab ordering, and rendering. `TabManager` remains the compatibility façade used by mixins, screens, and event callbacks.
+The architecture separates the state boundaries that must remain correct during packet processing, connection teardown, tab ordering, rendering, and background-tab notifications. `TabManager` remains the compatibility façade used by mixins, screens, and event callbacks.
 
 ## Components
 
 | Component | Owns | Does not own |
 |---|---|---|
 | `TabManager` | World-transition coordination, tick scheduling, stable API façade for mixins/UI | Tab registry, tab CRUD, connection policy, execution ThreadLocal, connection identity maps, optional renderer reflection |
-| `TabRegistry` | Tab IDs, active ID, ordered membership, read-only lookup view | Network events or context installation |
+| `TabRegistry` | Tab IDs, active ID, ordered membership, cached immutable context/ID snapshots | Network events or context installation |
 | `TabLifecycleManager` | Tab creation, ordering, closing, resource disposal, integrated-server ownership and shutdown | Packet routing or UI rendering |
 | `TabConnectionManager` | Connect attempts, disconnect policy, connection callbacks, background connection ticks, protocol-phase movement guard | Tab identity storage or tab ordering |
+| `TabDamageNotificationManager` | Per-listener inactive-player damage filtering, event coalescing, chat and sound alerts | Packet ownership or active-tab lifecycle |
 | `TabContext` | Snapshot of client fields belonging to one logical tab | Scheduling, connection routing, or tab ordering |
 | `TabContextExecutor` | Scoped global-state installation, nested execution marker, restoration after packet tasks | Ownership discovery or tab lifecycle |
 | `ConnectionOwnershipRegistry` | Identity mapping from `Connection` / `PacketListener` to tab IDs | Disconnect policy or Minecraft field mutation |
@@ -22,7 +23,7 @@ The architecture separates the state boundaries that must remain correct during 
 
 ## Invariants
 
-1. Structural changes to the tab registry and mutations to `TabContext` happen on Minecraft's client thread.
+1. Structural changes to the tab registry and mutations to `TabContext` happen on Minecraft's client thread. Ordered snapshots are rebuilt only on structural changes and reused by tick/render paths.
 2. Connection/listener ownership maps are identity-based and synchronized because connection callbacks may be observed from Netty threads.
 3. The owner of a packet task is resolved when the task is queued, not when it is later executed.
 4. Every outermost `runIn` scope marks its execution context. Nested `runIn` scopes restore the exact transient client state and do not publish half-completed login state into a persistent snapshot.
