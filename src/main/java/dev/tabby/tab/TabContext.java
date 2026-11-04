@@ -174,6 +174,11 @@ public final class TabContext {
                 this.packetListener = null;
             }
         }
+
+        // Minecraft's isLocalServer flag is global state owned by the installed tab.
+        // Derive it from this tab's connection so single-player mode stays in sync
+        // after login and when Tabby captures a temporarily installed background context.
+        accessor.tabby$setLocalServer(this.localServer);
     }
 
     /**
