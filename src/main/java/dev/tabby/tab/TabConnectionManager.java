@@ -716,10 +716,16 @@ final class TabConnectionManager {
                 continue;
             }
 
-            if (context.networkConnection != null && context.networkConnection.isConnected()) {
-                TabManager.runIn(context.id(), context.networkConnection::tick);
-            } else if (context.pendingConnection != null && context.pendingConnection.isConnected()) {
-                TabManager.runIn(context.id(), context.pendingConnection::tick);
+            // Tick the retained Connection object even after its Netty channel closes.
+            // Connection.tick() owns the one-shot handleDisconnection() callback; skipping
+            // isConnected()==false here strands a background tab before its disconnect
+            // listener can run, so reconnect policy and per-tab cleanup never get notified.
+            // The Connection method guards its own disconnection handling against repeats.
+            Connection backgroundConnection = context.networkConnection != null
+                ? context.networkConnection
+                : context.pendingConnection;
+            if (backgroundConnection != null) {
+                TabManager.runIn(context.id(), backgroundConnection::tick);
             }
         }
     }
