@@ -749,6 +749,8 @@ public final class TabManager {
                 previous.refreshMovementInputAfterKeyRelease();
             }
             target.refreshMovementInputAfterKeyRelease();
+            // Drop velocity impulses delivered while this tab's player physics was paused.
+            TabMotionTracker.beforeActivate(target);
             client.getSoundManager().stop();
             client.mouseHandler.setIgnoreFirstMove();
 
