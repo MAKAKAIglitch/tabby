@@ -12,6 +12,7 @@ import net.minecraft.network.PacketListener;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.server.level.ParticleStatus;
+import java.lang.reflect.Proxy;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,7 +162,7 @@ public final class CompatibilitySmokeTest {
 
     private static void verifyConnectionOwnershipCleanup() {
         int ownerId = TabManager.activeId();
-        Connection connection = new Connection(PacketFlow.CLIENT);
+        Connection connection = new Connection(PacketFlow.CLIENTBOUND);
         PacketListener handshakeListener = createProbeListener();
         PacketListener playListener = createProbeListener();
 
