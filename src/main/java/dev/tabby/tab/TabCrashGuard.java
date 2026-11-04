@@ -10,8 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Contains recoverable runtime failures raised while a hidden tab processes packets.
- * JVM Errors and exceptions from the active tab deliberately retain vanilla crash behaviour.
+ * Contains recoverable runtime and linkage failures raised while a hidden tab processes packets.
+ * VirtualMachineError, ThreadDeath, and failures from the active tab retain vanilla crash behaviour.
  */
 final class TabCrashGuard {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tabby");
