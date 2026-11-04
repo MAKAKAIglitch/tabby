@@ -1,6 +1,8 @@
 package dev.tabby.mixin;
 
 import dev.tabby.tab.TabManager;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.gui.screens.ReceivingLevelScreen;
@@ -29,23 +31,30 @@ public abstract class MinecraftMixin {
         TabManager.captureCurrentState();
     }
 
-    @Inject(
-        method = "setLevel(Lnet/minecraft/client/multiplayer/ClientLevel;Lnet/minecraft/client/gui/screens/ReceivingLevelScreen$Reason;)V",
-        at = @At("HEAD")
+    @WrapMethod(
+        method = "setLevel(Lnet/minecraft/client/multiplayer/ClientLevel;Lnet/minecraft/client/gui/screens/ReceivingLevelScreen$Reason;)V"
     )
-    private void tabby$beginWorldTransition(ClientLevel level, ReceivingLevelScreen.Reason reason, CallbackInfo ci) {
-        if (level != null) {
-            TabManager.beginClientLevelTransition(level);
+    private void tabby$wrapWorldTransition(
+        ClientLevel level,
+        ReceivingLevelScreen.Reason reason,
+        Operation<Void> original
+    ) {
+        if (level == null) {
+            original.call(level, reason);
+            return;
         }
-    }
 
-    @Inject(
-        method = "setLevel(Lnet/minecraft/client/multiplayer/ClientLevel;Lnet/minecraft/client/gui/screens/ReceivingLevelScreen$Reason;)V",
-        at = @At("RETURN")
-    )
-    private void tabby$completeWorldTransition(ClientLevel level, ReceivingLevelScreen.Reason reason, CallbackInfo ci) {
-        if (level != null) {
-            TabManager.onClientLevelInstalled(level);
+        TabManager.beginClientLevelTransition(level);
+        boolean installed = false;
+        try {
+            original.call(level, reason);
+            installed = true;
+        } finally {
+            if (installed) {
+                TabManager.onClientLevelInstalled(level);
+            } else {
+                TabManager.abortClientLevelTransition(level);
+            }
         }
     }
 
@@ -60,13 +69,24 @@ public abstract class MinecraftMixin {
         }
     }
 
-    @Inject(
-        method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V",
-        at = @At("HEAD"),
-        order = 0
-    )
-    private void tabby$beginVanillaDisconnect(Screen screen, boolean keepResourcePacks, CallbackInfo ci) {
+    @WrapMethod(method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V")
+    private void tabby$wrapVanillaDisconnect(
+        Screen screen,
+        boolean keepResourcePacks,
+        Operation<Void> original
+    ) {
         TabManager.beginClientDisconnect(screen);
+        boolean completed = false;
+        try {
+            original.call(screen, keepResourcePacks);
+            completed = true;
+        } finally {
+            try {
+                tabby$restorePreservedIntegratedServer();
+            } finally {
+                TabManager.endClientDisconnect(completed);
+            }
+        }
     }
 
     @Inject(method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V", at = @At("HEAD"))
@@ -84,8 +104,8 @@ public abstract class MinecraftMixin {
         }
     }
 
-    @Inject(method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V", at = @At("RETURN"))
-    private void tabby$restoreOtherTabIntegratedServer(Screen screen, boolean keepResourcePacks, CallbackInfo ci) {
+    @Unique
+    private void tabby$restorePreservedIntegratedServer() {
         if (this.tabby$preservedIntegratedServer == null) {
             return;
         }
@@ -93,15 +113,6 @@ public abstract class MinecraftMixin {
         ((MinecraftAccessor) this).tabby$setSingleplayerServer(this.tabby$preservedIntegratedServer);
         this.tabby$preservedIntegratedServer = null;
         LOGGER.debug("Restored the inactive tab's integrated server after disconnect cleanup");
-    }
-
-    @Inject(
-        method = "disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V",
-        at = @At("RETURN"),
-        order = 2000
-    )
-    private void tabby$finishVanillaDisconnect(Screen screen, boolean keepResourcePacks, CallbackInfo ci) {
-        TabManager.endClientDisconnect();
     }
 
     @Inject(

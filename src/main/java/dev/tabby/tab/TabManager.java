@@ -279,6 +279,14 @@ public final class TabManager {
     }
 
     public static void endClientDisconnect() {
+        endClientDisconnect(true);
+    }
+
+    /**
+     * Releases the disconnect guard even if vanilla or another mod throws during cleanup.
+     * A failed disconnect must not publish partially-cleared Minecraft globals to a tab.
+     */
+    public static void endClientDisconnect(boolean completed) {
         int depth = CLIENT_DISCONNECT_DEPTH.get();
         if (depth <= 0) {
             CLIENT_DISCONNECT_DEPTH.remove();
@@ -290,7 +298,10 @@ public final class TabManager {
         }
 
         CLIENT_DISCONNECT_DEPTH.remove();
-        if (client == null) {
+        if (client == null || !completed) {
+            if (!completed) {
+                LOGGER.warn("Vanilla disconnect failed; discarded the temporary client state without capturing it");
+            }
             return;
         }
 
@@ -422,6 +433,39 @@ public final class TabManager {
             context.worldTransitionTicks = 0;
         }
         LOGGER.debug("Beginning level installation for tab {}", ownerId);
+    }
+
+    /**
+     * Clears a level-transition marker when Minecraft or another mod throws before
+     * the incoming level is fully installed. Nested transitions for the same tab remain guarded.
+     */
+    public static void abortClientLevelTransition(ClientLevel failedLevel) {
+        if (client == null) {
+            return;
+        }
+
+        ArrayDeque<Integer> transitions = CLIENT_LEVEL_TRANSITIONS.get();
+        if (transitions.isEmpty()) {
+            CLIENT_LEVEL_TRANSITIONS.remove();
+            return;
+        }
+
+        int ownerId = transitions.pop();
+        boolean sameTabStillTransitioning = transitions.contains(ownerId);
+        if (transitions.isEmpty()) {
+            CLIENT_LEVEL_TRANSITIONS.remove();
+        }
+
+        TabContext context = TabRegistry.get(ownerId);
+        if (context != null && !sameTabStillTransitioning) {
+            context.worldTransitioning = false;
+            context.worldTransitionTicks = 0;
+        }
+        LOGGER.warn(
+            "Aborted ClientLevel installation for tab {} after an exception (incomingLevel={})",
+            ownerId,
+            failedLevel == null ? "null" : System.identityHashCode(failedLevel)
+        );
     }
 
     public static boolean isClientLevelTransitioning() {
