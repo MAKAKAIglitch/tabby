@@ -7,6 +7,9 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.network.Connection;
+import net.minecraft.network.PacketListener;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.server.level.ParticleStatus;
 import org.lwjgl.glfw.GLFW;
@@ -57,6 +60,7 @@ public final class CompatibilitySmokeTest {
 
     private static void beginConnection(Minecraft client) {
         if (!modVerified) {
+            verifyConnectionOwnershipCleanup();
             verifyExpectedModLoaded();
             modVerified = true;
         }
@@ -153,6 +157,38 @@ public final class CompatibilitySmokeTest {
                 "Simple Voice Chat session does not follow the selected tab"
             );
         }
+    }
+
+    private static void verifyConnectionOwnershipCleanup() {
+        int ownerId = TabManager.activeId();
+        Connection connection = new Connection(PacketFlow.CLIENT);
+        PacketListener handshakeListener = createProbeListener();
+        PacketListener playListener = createProbeListener();
+
+        ConnectionOwnershipRegistry.registerConnection(connection, ownerId);
+        ConnectionOwnershipRegistry.registerListener(connection, handshakeListener, ownerId);
+        ConnectionOwnershipRegistry.registerListener(connection, playListener, ownerId);
+        require(
+            ConnectionOwnershipRegistry.ownerIdFor(handshakeListener) == ownerId
+                && ConnectionOwnershipRegistry.ownerIdFor(playListener) == ownerId,
+            "Connection ownership was not recorded for every protocol listener"
+        );
+
+        ConnectionOwnershipRegistry.removeConnection(connection, playListener);
+        require(
+            ConnectionOwnershipRegistry.ownerIdFor(handshakeListener) < 0
+                && ConnectionOwnershipRegistry.ownerIdFor(playListener) < 0,
+            "Disconnect cleanup retained a listener from an earlier protocol phase"
+        );
+        LOGGER.info("Compatibility test: all protocol listeners are released when a connection closes");
+    }
+
+    private static PacketListener createProbeListener() {
+        return (PacketListener) Proxy.newProxyInstance(
+            PacketListener.class.getClassLoader(),
+            new Class<?>[]{PacketListener.class},
+            (proxy, method, arguments) -> null
+        );
     }
 
     private static void verifyExpectedModLoaded() {

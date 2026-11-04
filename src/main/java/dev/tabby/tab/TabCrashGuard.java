@@ -15,7 +15,7 @@ import java.util.Map;
  */
 final class TabCrashGuard {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tabby");
-    private static final Map<Integer, RuntimeException> PENDING = new LinkedHashMap<>();
+    private static final Map<Integer, Throwable> PENDING = new LinkedHashMap<>();
 
     private TabCrashGuard() {
     }
@@ -24,7 +24,7 @@ final class TabCrashGuard {
         return failingTabId >= 0 && failingTabId != activeTabId;
     }
 
-    static void queueBackgroundFailure(int tabId, RuntimeException exception) {
+    static void queueBackgroundFailure(int tabId, Throwable exception) {
         if (exception == null || !shouldIsolate(TabRegistry.activeId(), tabId)) {
             return;
         }
@@ -42,7 +42,7 @@ final class TabCrashGuard {
             : detail;
         PENDING.put(tabId, exception);
         LOGGER.error(
-            "Tabby isolated a runtime failure in background tab {} ({}); the full stack trace follows",
+            "Tabby isolated a runtime/linkage failure in background tab {} ({}); the full stack trace follows",
             tabId,
             context.displayTitle(),
             exception
@@ -54,7 +54,7 @@ final class TabCrashGuard {
             return;
         }
 
-        for (Map.Entry<Integer, RuntimeException> entry : Map.copyOf(PENDING).entrySet()) {
+        for (Map.Entry<Integer, Throwable> entry : Map.copyOf(PENDING).entrySet()) {
             int tabId = entry.getKey();
             PENDING.remove(tabId);
             TabContext context = TabRegistry.get(tabId);

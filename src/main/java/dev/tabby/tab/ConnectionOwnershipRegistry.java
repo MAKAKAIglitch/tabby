@@ -16,6 +16,9 @@ import java.util.Map;
 final class ConnectionOwnershipRegistry {
     private static final Map<Connection, Integer> CONNECTION_OWNERS = new IdentityHashMap<>();
     private static final Map<PacketListener, Integer> LISTENER_OWNERS = new IdentityHashMap<>();
+    // A connection may replace its listener several times during handshake/login.
+    // Keep the reverse identity link so disconnect cleanup can release every old listener.
+    private static final Map<PacketListener, Connection> LISTENER_CONNECTIONS = new IdentityHashMap<>();
 
     private ConnectionOwnershipRegistry() {
     }
@@ -40,6 +43,7 @@ final class ConnectionOwnershipRegistry {
         }
         synchronized (LISTENER_OWNERS) {
             LISTENER_OWNERS.put(listener, ownerId);
+            LISTENER_CONNECTIONS.put(listener, connection);
         }
 
         if (listener instanceof TabOwnedListener owned) {
@@ -67,9 +71,20 @@ final class ConnectionOwnershipRegistry {
                 CONNECTION_OWNERS.remove(connection);
             }
         }
-        if (listener != null) {
-            synchronized (LISTENER_OWNERS) {
+        synchronized (LISTENER_OWNERS) {
+            if (listener != null) {
                 LISTENER_OWNERS.remove(listener);
+                LISTENER_CONNECTIONS.remove(listener);
+            }
+            if (connection != null) {
+                LISTENER_OWNERS.entrySet().removeIf(entry -> {
+                    PacketListener ownedListener = entry.getKey();
+                    if (LISTENER_CONNECTIONS.get(ownedListener) == connection) {
+                        LISTENER_CONNECTIONS.remove(ownedListener);
+                        return true;
+                    }
+                    return false;
+                });
             }
         }
     }
@@ -79,7 +94,13 @@ final class ConnectionOwnershipRegistry {
             CONNECTION_OWNERS.entrySet().removeIf(entry -> entry.getValue() == tabId);
         }
         synchronized (LISTENER_OWNERS) {
-            LISTENER_OWNERS.entrySet().removeIf(entry -> entry.getValue() == tabId);
+            LISTENER_OWNERS.entrySet().removeIf(entry -> {
+                if (entry.getValue() != tabId) {
+                    return false;
+                }
+                LISTENER_CONNECTIONS.remove(entry.getKey());
+                return true;
+            });
         }
     }
 
@@ -89,6 +110,7 @@ final class ConnectionOwnershipRegistry {
         }
         synchronized (LISTENER_OWNERS) {
             LISTENER_OWNERS.clear();
+            LISTENER_CONNECTIONS.clear();
         }
     }
 }

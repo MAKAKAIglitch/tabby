@@ -106,7 +106,7 @@ final class TabContextExecutor {
             // Background packet handlers must not replace the visible Screen.
             target.applyTo(client, false);
             task.run();
-        } catch (RuntimeException exception) {
+        } catch (RuntimeException | LinkageError exception) {
             if (tabId != activeId) {
                 isolatedFailure = true;
                 TabCrashGuard.queueBackgroundFailure(tabId, exception);
@@ -119,7 +119,7 @@ final class TabContextExecutor {
                 if (!isolatedFailure) {
                     try {
                         target.captureFrom(client);
-                    } catch (RuntimeException exception) {
+                    } catch (RuntimeException | LinkageError exception) {
                         if (tabId != activeId) {
                             isolatedFailure = true;
                             TabCrashGuard.queueBackgroundFailure(tabId, exception);

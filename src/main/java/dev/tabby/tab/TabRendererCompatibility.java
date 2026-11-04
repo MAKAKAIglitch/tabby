@@ -62,8 +62,8 @@ final class TabRendererCompatibility {
             LOGGER.info("Suspended Voxy render system for background tab {}", tabId);
         } catch (NoSuchMethodException ignored) {
             // Voxy is optional; its methods exist only when its runtime mixin is applied.
-        } catch (ReflectiveOperationException | RuntimeException exception) {
-            LOGGER.warn("Could not suspend Voxy render system for tab {}", tabId, exception);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError exception) {
+            LOGGER.warn("Could not suspend Voxy render system for tab {}; keeping the client running", tabId, exception);
         }
     }
 
@@ -82,8 +82,8 @@ final class TabRendererCompatibility {
             LOGGER.info("Activated Voxy render system for active tab {}", tabId);
         } catch (NoSuchMethodException ignored) {
             // Voxy is optional; its methods exist only when its runtime mixin is applied.
-        } catch (ReflectiveOperationException | RuntimeException exception) {
-            LOGGER.warn("Could not activate Voxy render system for tab {}", tabId, exception);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError exception) {
+            LOGGER.warn("Could not activate Voxy render system for tab {}; keeping the client running", tabId, exception);
         }
     }
 }
