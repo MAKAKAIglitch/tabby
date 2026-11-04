@@ -49,6 +49,8 @@ public final class TabContext {
     public int worldTransitionTicks;
     public boolean pinned;
     public boolean disconnecting;
+    public boolean connectedAtLeastOnce;
+    public String lastBackgroundFailure;
     public Connection disconnectingConnection;
     public Connection disconnectingPendingConnection;
 

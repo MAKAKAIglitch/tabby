@@ -60,5 +60,10 @@
   "tabby.settings.appearance_note": "Изменения сохраняются автоматически и применяются к панели вкладок.",
   "tabby.settings.keyboard_note": "Для команд используется Ctrl. Ctrl+1–9 выбирает вкладку по номеру.",
   "tabby.settings.damage_flash": "Красное мерцание вкладки при уроне: %s",
-  "tabby.settings.tab_vitals": "Показывать здоровье и сытость на вкладках: %s"
+  "tabby.settings.tab_vitals": "Показывать здоровье и сытость на вкладках: %s",
+  "tabby.settings.unread_messages": "Счётчики новых сообщений и упоминаний: %s",
+  "tabby.settings.auto_reconnect": "Автоматически переподключаться: %s",
+  "tabby.toast.background_crash": "Фоновая вкладка %s изолирована после ошибки",
+  "tabby.toast.reconnect_success": "Повторное подключение к %s выполнено",
+  "tabby.toast.reconnect_failed": "Не удалось подключиться к %s после 5 попыток"
 }

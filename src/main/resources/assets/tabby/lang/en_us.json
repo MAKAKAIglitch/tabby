@@ -60,5 +60,10 @@
   "tabby.settings.appearance_note": "Changes are saved immediately and apply to the tab bar.",
   "tabby.settings.keyboard_note": "Shortcuts use Ctrl. Ctrl+1–9 still selects tabs by position.",
   "tabby.settings.damage_flash": "Flash tab red on damage: %s",
-  "tabby.settings.tab_vitals": "Show health and hunger on tabs: %s"
+  "tabby.settings.tab_vitals": "Show health and hunger on tabs: %s",
+  "tabby.settings.unread_messages": "Unread messages and mention badges: %s",
+  "tabby.settings.auto_reconnect": "Automatically reconnect: %s",
+  "tabby.toast.background_crash": "Background tab %s was isolated after an error",
+  "tabby.toast.reconnect_success": "Reconnected to %s",
+  "tabby.toast.reconnect_failed": "Could not reconnect to %s after 5 attempts"
 }

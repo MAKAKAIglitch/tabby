@@ -114,6 +114,8 @@ public final class TabManager {
             runPrototypeSmokeTestTick();
         }
 
+        TabCrashGuard.tick(minecraft);
+        TabReconnectManager.tick(minecraft);
         tickRestoredServerAddresses(minecraft);
         TabConnectionManager.tickBackgroundConnections();
         TabDamageNotificationManager.tick(minecraft);
@@ -372,6 +374,16 @@ public final class TabManager {
 
         context.captureFrom(client);
         if (!sameTabStillLoggingIn) {
+            boolean loginCompleted = context.level != null
+                && context.player != null
+                && context.clientConnection == listener
+                && context.networkConnection != null
+                && context.networkConnection.isConnected();
+            if (loginCompleted) {
+                context.connectedAtLeastOnce = true;
+                context.lastBackgroundFailure = null;
+                TabReconnectManager.onLoginSucceeded(ownerId);
+            }
             context.worldTransitioning = false;
             context.worldTransitionTicks = 0;
         }
@@ -637,6 +649,9 @@ public final class TabManager {
         TabRegistry.clear();
         TabMemoryUsage.clear();
         TabDamageNotificationManager.clear();
+        TabUnreadMessageManager.clear();
+        TabReconnectManager.clear();
+        TabCrashGuard.clear();
         ConnectionOwnershipRegistry.clear();
         TabContextExecutor.clearCurrentThread();
         TabRegistry.setActiveId(-1);
@@ -741,6 +756,7 @@ public final class TabManager {
             }
             target.applyTo(client, false);
             TabRegistry.setActiveId(tabId);
+            TabUnreadMessageManager.markRead(tabId);
             // Keep already-built chunk render state when returning to a known tab.
             // setLevel() calls allChanged(), so only call it if the renderer has a different world.
             if (((LevelRendererAccessor) target.levelRenderer).tabby$getLevel() != target.level) {
@@ -829,6 +845,10 @@ public final class TabManager {
 
     public static void onPlayerDamage(ClientPacketListener listener, int entityId) {
         TabDamageNotificationManager.onPlayerDamage(listener, entityId);
+    }
+
+    public static void onBackgroundChatMessage(Component message) {
+        TabUnreadMessageManager.onChatMessage(message);
     }
 
     public static boolean shouldSuppressOutOfPhaseMovement(Packet<?> packet, ConnectionProtocol phase) {

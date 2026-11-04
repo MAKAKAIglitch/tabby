@@ -72,6 +72,10 @@ public final class TabbyConfigScreen extends Screen {
         keyOption(x2, 134, Binding.CREATE);
         keyOption(x1, 164, Binding.CLOSE);
         keyOption(x2, 164, Binding.NEXT);
+        option(x1, 194, col, toggle("tabby.settings.unread_messages", TabbyConfig.showUnreadMessages()),
+            () -> TabbyConfig.setShowUnreadMessages(!TabbyConfig.showUnreadMessages()));
+        option(x2, 194, col, toggle("tabby.settings.auto_reconnect", TabbyConfig.autoReconnect()),
+            () -> TabbyConfig.setAutoReconnect(!TabbyConfig.autoReconnect()));
     }
 
     private void appearancePage() {
@@ -236,7 +240,7 @@ public final class TabbyConfigScreen extends Screen {
         } else if (page == Page.APPEARANCE) {
             g.drawString(font, Component.translatable("tabby.settings.appearance_note"), left + 14, 314, 0xFF8F9EAC, false);
         } else {
-            g.drawString(font, Component.translatable("tabby.settings.keyboard_note"), left + 14, 196, 0xFF8F9EAC, false);
+            g.drawString(font, Component.translatable("tabby.settings.keyboard_note"), left + 14, 226, 0xFF8F9EAC, false);
         }
         if (status != null) g.drawCenteredString(font, status, this.width / 2, this.height - 48, 0xFFE8D28B);
     }

@@ -58,6 +58,7 @@ public final class NetworkSmokeTest {
     private static final int SWITCH_INTERVAL_TICKS = 40;
     private static final int CONTENT_TIMEOUT_TICKS = 400;
     private static final String CHAT_A_MARKER = "TABBY_CHAT_A_MARKER";
+    private static final String CHAT_A_MENTION_MARKER = "TABBY_CHAT_A_MENTION_MARKER";
     private static final String CHAT_B_MARKER = "TABBY_CHAT_B_MARKER";
     private static final String ENTITY_A_MARKER = "TABBY_ENTITY_A_MARKER";
     private static final String ENTITY_B_MARKER = "TABBY_ENTITY_B_MARKER";
@@ -67,7 +68,10 @@ public final class NetworkSmokeTest {
         WAIT_FOR_SERVER_A,
         WAIT_FOR_SERVER_B,
         WAIT_FOR_CONTENT_ISOLATION,
+        WAIT_FOR_RECONNECT,
+        WAIT_FOR_CONTENT_RESEED,
         SWITCHING,
+        WAIT_FOR_CRASH_GUARD_TAB,
         START_SINGLEPLAYER,
         WAIT_FOR_SINGLEPLAYER,
         WAIT_FOR_NETWORK_WITH_SINGLEPLAYER,
@@ -90,6 +94,10 @@ public final class NetworkSmokeTest {
     private static LocalPlayer savedSingleplayerPlayer;
     private static boolean singleplayerLevelReplacementLogged;
     private static Connection savedSingleplayerConnection;
+    private static Connection savedServerAConnection;
+    private static Connection savedServerBConnection;
+    private static int crashGuardTabId = -1;
+    private static boolean unreadCountersVerified;
     private static IntegratedServer savedIntegratedServer;
 
     private NetworkSmokeTest() {
@@ -109,7 +117,10 @@ public final class NetworkSmokeTest {
             case WAIT_FOR_SERVER_A -> waitForServerA(client);
             case WAIT_FOR_SERVER_B -> waitForServerB(client);
             case WAIT_FOR_CONTENT_ISOLATION -> waitForContentIsolation(client);
+            case WAIT_FOR_RECONNECT -> waitForReconnect(client);
+            case WAIT_FOR_CONTENT_RESEED -> waitForContentReseed(client);
             case SWITCHING -> exerciseConnections(client);
+            case WAIT_FOR_CRASH_GUARD_TAB -> waitForCrashGuardTab(client);
             case START_SINGLEPLAYER -> startSingleplayer(client);
             case WAIT_FOR_SINGLEPLAYER -> waitForSingleplayer(client);
             case WAIT_FOR_NETWORK_WITH_SINGLEPLAYER -> waitForNetworkWithSingleplayer(client);
@@ -171,6 +182,7 @@ public final class NetworkSmokeTest {
             verifyTabStripInteractions(client);
             verifyBackgroundDamageNotificationIsolation();
             verifyDamageFlashAndVitalsDefaults();
+            verifyReconnectDefaults();
 
             prepareContentIsolation();
             LOGGER.info("Network smoke test: seeded different chat messages, inventory items, and named entities on both servers");
@@ -303,6 +315,8 @@ public final class NetworkSmokeTest {
         runRconCommand("TABBY_RCON_PORT_B", 25576, "give @a minecraft:emerald 1");
         runRconCommand("TABBY_RCON_PORT_A", 25575,
             "tellraw @a {\"text\":\"" + CHAT_A_MARKER + "\"}");
+        runRconCommand("TABBY_RCON_PORT_A", 25575,
+            "tellraw @a {\"text\":\"" + CHAT_A_MENTION_MARKER + " " + TabManager.clientInstance().getUser().getName() + "\"}");
         runRconCommand("TABBY_RCON_PORT_B", 25576,
             "tellraw @a {\"text\":\"" + CHAT_B_MARKER + "\"}");
         runRconCommand("TABBY_RCON_PORT_A", 25575,
@@ -318,11 +332,140 @@ public final class NetworkSmokeTest {
         if (contentFixturesReady()) {
             validateContentIsolation();
             LOGGER.info("Network smoke test: chat, inventory, and named-entity state remained isolated between server A and server B");
+            if (!unreadCountersVerified) verifyUnreadMessageBadges();
+            savedServerAConnection = context(0).networkConnection;
+            savedServerBConnection = context(1).networkConnection;
+            runRconCommand("TABBY_RCON_PORT_A", 25575, "kick @a");
+            phase = Phase.WAIT_FOR_RECONNECT;
+            phaseTicks = 0;
+        } else if (phaseTicks > CONTENT_TIMEOUT_TICKS) {
+            fail("Timed out waiting for distinct chat/inventory/entity fixtures: " + contentState());
+        }
+    }
+
+    private static void verifyUnreadMessageBadges() {
+        require(TabbyConfig.showUnreadMessages(), "Unread-message badges must be enabled by default");
+        require(TabUnreadMessageManager.unreadMessages(0) >= 2,
+            "Chat messages received by background tab 0 were not counted");
+        require(TabUnreadMessageManager.unreadMentions(0) > 0,
+            "A background chat message mentioning the local player was not counted");
+        require(TabUnreadMessageManager.unreadMessages(1) == 0,
+            "Messages received by the active tab were incorrectly counted as unread");
+        TabManager.switchTo(0);
+        require(TabUnreadMessageManager.unreadMessages(0) == 0
+                && TabUnreadMessageManager.unreadMentions(0) == 0,
+            "Selecting a tab did not clear its unread message and mention counters");
+        TabManager.switchTo(1);
+        unreadCountersVerified = true;
+        LOGGER.info("Network smoke test: unread chat and mention counters are isolated per tab and clear on selection");
+    }
+
+    private static void verifyReconnectDefaults() {
+        TabContext remote = context(1);
+        require(TabbyConfig.autoReconnect(), "Automatic reconnect must be enabled by default");
+        require(TabReconnectManager.MAX_ATTEMPTS == 5, "Automatic reconnect attempt limit changed unexpectedly");
+        require(TabReconnectManager.RETRY_DELAY_TICKS == 100, "Automatic reconnect delay must be five seconds");
+        require(TabReconnectManager.isEligible(remote, false),
+            "A previously connected remote tab was not eligible for automatic reconnect");
+        require(!TabReconnectManager.isEligible(remote, true),
+            "An intentional disconnect was incorrectly eligible for automatic reconnect");
+        boolean previousLocalServer = remote.localServer;
+        remote.localServer = true;
+        try {
+            require(!TabReconnectManager.isEligible(remote, false),
+                "An integrated single-player connection was incorrectly eligible for automatic reconnect");
+        } finally {
+            remote.localServer = previousLocalServer;
+        }
+        TabbyConfig.setAutoReconnect(false);
+        try {
+            require(!TabReconnectManager.isEligible(remote, false),
+                "Disabling automatic reconnect did not prevent retry eligibility");
+        } finally {
+            TabbyConfig.setAutoReconnect(true);
+        }
+        LOGGER.info("Network smoke test: reconnect defaults, manual-disconnect, single-player and opt-out exclusions verified");
+    }
+
+    private static void waitForReconnect(Minecraft client) {
+        phaseTicks++;
+        TabContext serverA = contextOrNull(0);
+        TabContext serverB = contextOrNull(1);
+        if (isJoined(serverA)) {
+            require(serverA.networkConnection != savedServerAConnection,
+                "Automatic reconnect reused the disconnected server A connection");
+            require(serverB != null && serverB.networkConnection == savedServerBConnection
+                    && savedServerBConnection.isConnected(),
+                "Reconnecting server A disturbed the unaffected server B connection");
+            require(!TabReconnectManager.isScheduled(0),
+                "Automatic reconnect state was not cleared after a successful login");
+            require(TabReconnectManager.attempts(0) == 0,
+                "Successful automatic reconnect retained stale retry attempts");
+            validateConnections(client);
+            prepareContentIsolation();
+            phase = Phase.WAIT_FOR_CONTENT_RESEED;
+            phaseTicks = 0;
+            LOGGER.info("Network smoke test: background server A reconnected without replacing server B's live session");
+        } else if (phaseTicks > JOIN_TIMEOUT_TICKS) {
+            fail("Background server A did not reconnect within " + JOIN_TIMEOUT_TICKS + " ticks");
+        }
+    }
+
+    private static void waitForContentReseed(Minecraft client) {
+        phaseTicks++;
+        if (contentFixturesReady()) {
+            validateContentIsolation();
             phase = Phase.SWITCHING;
             phaseTicks = 0;
             activeTicks = 0;
+            LOGGER.info("Network smoke test: chat and world fixtures were reseeded after automatic reconnect");
         } else if (phaseTicks > CONTENT_TIMEOUT_TICKS) {
-            fail("Timed out waiting for distinct chat/inventory/entity fixtures: " + contentState());
+            fail("Chat and world fixtures were not restored after automatic reconnect: " + contentState());
+        }
+    }
+
+    private static void waitForCrashGuardTab(Minecraft client) {
+        phaseTicks++;
+        TabContext failing = contextOrNull(crashGuardTabId);
+        if (isJoined(failing)) {
+            TabManager.switchTo(1);
+            Connection unaffected = context(1).networkConnection;
+            TabManager.runIn(crashGuardTabId, () -> {
+                throw new IllegalStateException("Synthetic background packet failure for crash-isolation test");
+            });
+            require(TabCrashGuard.pendingCount() == 1,
+                "A background runtime exception was not queued for crash isolation");
+            require(client.level == context(1).level && client.player == context(1).player,
+                "A background packet exception failed to restore the active tab globals");
+            TabCrashGuard.tick(client);
+            require(TabCrashGuard.hasFailure(crashGuardTabId),
+                "The isolated background tab did not retain its diagnostic state");
+            require(!isJoined(contextOrNull(crashGuardTabId)),
+                "The failed background tab was not disconnected cleanly");
+            require(isJoined(context(1)) && context(1).networkConnection == unaffected,
+                "Crash isolation damaged the unaffected active server connection");
+            require(client.level == context(1).level && client.player == context(1).player,
+                "Crash isolation did not preserve the active world and player");
+            boolean activeFailurePropagated = false;
+            try {
+                TabManager.runIn(1, () -> {
+                    throw new IllegalArgumentException("Synthetic active-tab failure propagation test");
+                });
+            } catch (IllegalArgumentException expected) {
+                activeFailurePropagated = true;
+            }
+            require(activeFailurePropagated,
+                "The crash guard incorrectly swallowed an exception from the active tab");
+            require(TabCrashGuard.pendingCount() == 0,
+                "An active-tab exception was incorrectly queued for background isolation");
+            TabManager.closeTab(crashGuardTabId);
+            singleplayerTabId = TabManager.activeId();
+            require(singleplayerTabId == 1, "Crash isolation changed the selected tab");
+            phase = Phase.START_SINGLEPLAYER;
+            phaseTicks = 0;
+            LOGGER.info("Network smoke test: background runtime failure isolated without crashing or disconnecting the active tab");
+        } else if (phaseTicks > JOIN_TIMEOUT_TICKS) {
+            fail("Crash-guard fixture did not join server A within " + JOIN_TIMEOUT_TICKS + " ticks");
         }
     }
 
@@ -684,13 +827,13 @@ public final class NetworkSmokeTest {
             TabManager.closeTab(0);
             require(contextOrNull(0) == null, "Closing the disconnected network tab did not remove its context");
             require(isJoined(context(1)), "Closing the disconnected tab damaged the remaining network connection");
-            singleplayerTabId = TabManager.activeId();
-            require(singleplayerTabId == 1, "The remaining network tab was not selected for the single-player test");
-            require(contextOrNull(singleplayerTabId) != null, "No active tab remained for the single-player test");
-
-            phase = Phase.START_SINGLEPLAYER;
+            TabManager.createTestTab();
+            crashGuardTabId = TabManager.activeId();
+            require(crashGuardTabId != 1, "Crash-guard fixture did not create a separate tab");
+            connect(client, "Tabby CI crash-guard fixture", environmentAddress("TABBY_SERVER_A", "127.0.0.1:25565"));
+            phase = Phase.WAIT_FOR_CRASH_GUARD_TAB;
             phaseTicks = 0;
-            LOGGER.info("Network smoke test: two-server isolation passed; opening an integrated single-player world next");
+            LOGGER.info("Network smoke test: opening a separate remote tab for background exception isolation");
         }
     }
 

@@ -104,3 +104,8 @@ Test on Fabric API alone, then separately with Sodium, Iris, Lithium, and Mod Me
 
 
 - [x] Background tab damage feedback — briefly flash the damaged hidden tab red and show that tab's own health and hunger in its tab-strip label; both settings default on and can be independently disabled.
+
+
+- [ ] Unread background chat and mention counters — per-tab badge, local-player mention detection, clear-on-select behavior, default-on setting and Mod Menu toggle.
+- [ ] Per-tab automatic reconnect — remote sessions only, maximum five attempts, five-second delay and per-attempt timeout; intentional disconnect and integrated single-player are excluded.
+- [ ] Background packet failure containment — non-fatal runtime exceptions from hidden-tab scoped work are logged and that tab is isolated, while active-tab failures and JVM Errors are not suppressed.

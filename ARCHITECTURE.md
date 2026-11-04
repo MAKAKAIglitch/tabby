@@ -15,6 +15,9 @@ The architecture separates the state boundaries that must remain correct during 
 | `TabLifecycleManager` | Tab creation, ordering, closing, resource disposal, integrated-server ownership and shutdown | Packet routing or UI rendering |
 | `TabConnectionManager` | Connect attempts, disconnect policy, connection callbacks, background connection ticks, protocol-phase movement guard | Tab identity storage or tab ordering |
 | `TabDamageNotificationManager` | Per-listener inactive-player damage filtering, event coalescing, chat and sound alerts | Packet ownership or active-tab lifecycle |
+| `TabUnreadMessageManager` | Per-tab unread chat and local-player mention counts, clear-on-select and badge state | Chat packet routing or global chat history |
+| `TabReconnectManager` | Bounded remote-session retry state, retry timers and automatic reconnect attempts per tab | Connection ownership or manual disconnect policy |
+| `TabCrashGuard` | Logs and isolates recoverable runtime failures from hidden-tab packet/tick work | Active-tab failures or JVM-level Errors |
 | `SimpleVoiceChatCompatibility` | Optional single-session SVC lifecycle rebinding to the selected tab; hidden-tab callback suppression is implemented by an optional mixin | Independent simultaneous voice sessions per tab; compile-time SVC dependency |
 | `TabContext` | Snapshot of client fields belonging to one logical tab | Scheduling, connection routing, or tab ordering |
 | `TabContextExecutor` | Scoped global-state installation, nested execution marker, restoration after packet tasks | Ownership discovery or tab lifecycle |
@@ -57,3 +60,10 @@ A tab switch releases Minecraft's global key mappings. Each previous/target `Loc
 
 
 Background damage feedback is owned by `TabDamageNotificationManager`: it stores a short per-tab visual timer when a hidden local player receives a damage event. The tab strip reads this timer and that context's own `LocalPlayer` health/food values. Both features default on and have independent settings. No player HUD, health, hunger, or world state is modified.
+
+
+## Background chat, reconnect and failure containment
+
+Chat lines are counted at the ChatComponent.addMessage(Component, MessageSignature, GuiMessageTag) boundary while the owning context is installed. The unread count and local-player mentions are kept by tab ID and cleared when the user selects that tab. A dedicated option can disable these badges.
+Unexpected disconnects for remote tabs that have successfully joined are eligible for a bounded retry schedule (five attempts, five-second delay, 20-second attempt timeout). The retry state retains the original server data separately from the cleared world context; every attempt is started inside its owning tab scope. Manual disconnects, tab closure and integrated single-player connections are excluded.
+A RuntimeException escaping a scoped background packet/tick task is recorded with its stack trace. The task's partial context is not captured; the previously selected context is restored, and client maintenance then disconnects the failing tab. Exceptions in the selected tab and JVM-level Error conditions continue to propagate normally. This reduces cross-tab failure propagation but cannot prevent every crash caused by arbitrary third-party code, native libraries, memory exhaustion or failures outside Tabby's scoped tasks.

@@ -70,6 +70,8 @@ public final class ModMenuIntegrationSmokeTest {
         requireLabel(buttonLabels, "Restore server addresses:");
         requireLabel(buttonLabels, "Show tab bar in menus:");
         requireLabel(buttonLabels, "Background damage alerts:");
+        requireLabel(buttonLabels, "Unread messages and mention badges:");
+        requireLabel(buttonLabels, "Automatically reconnect:");
 
         pressPage(configScreen, "Appearance");
         buttonLabels = labels(configScreen);

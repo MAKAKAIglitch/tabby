@@ -134,6 +134,9 @@ final class TabLifecycleManager {
         int id = context.id();
         TabMemoryUsage.remove(id);
         TabDamageNotificationManager.removeTab(id);
+        TabUnreadMessageManager.removeTab(id);
+        TabReconnectManager.removeTab(id);
+        TabCrashGuard.removeTab(id);
 
         ConnectionOwnershipRegistry.removeTab(id);
 

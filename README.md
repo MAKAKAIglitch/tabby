@@ -95,3 +95,8 @@ New configurations default to three background tabs instead of four. A lower lim
 
 
 Background tab feedback: when a hidden tab's local player takes damage, that tab briefly flashes red in the tab strip. Hidden tabs also show compact health and hunger values by default. Both features can be independently disabled on the Appearance page. Values are read from each tab's own LocalPlayer; active-tab HUD and world state are not modified.
+
+
+**Unread chat and mentions.** Each background tab tracks chat lines added while its context is installed. A tab badge shows unread message count and a separate local-player mention count; selecting the tab clears its unread counters. Enabled by default, independently configurable.
+**Automatic reconnect.** Unexpected disconnects from previously joined remote servers schedule up to five reconnect attempts, five seconds apart, with a 20-second per-attempt timeout. Manual disconnects, removed tabs and integrated single-player sessions are excluded. Reconnect state belongs to the individual tab.
+**Background failure isolation.** Runtime exceptions thrown while processing a background tab's scoped packet/tick task are logged with their stack trace, and that tab is disconnected on the next client maintenance tick. The active tab is restored before maintenance continues. Exceptions from the active tab and JVM-level Error conditions retain vanilla behavior; this is targeted containment, not a guarantee that every mod crash can be prevented.

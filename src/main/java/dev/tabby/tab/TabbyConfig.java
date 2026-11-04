@@ -48,6 +48,8 @@ public final class TabbyConfig {
         if (data.notifyBackgroundDamage == null) data.notifyBackgroundDamage = Boolean.TRUE;
         if (data.showDamageFlash == null) data.showDamageFlash = Boolean.TRUE;
         if (data.showTabVitals == null) data.showTabVitals = Boolean.TRUE;
+        if (data.showUnreadMessages == null) data.showUnreadMessages = Boolean.TRUE;
+        if (data.autoReconnect == null) data.autoReconnect = Boolean.TRUE;
         data.tabTitleMode = normalizeTabTitleMode(data.tabTitleMode);
         data.barVisibilityMode = normalizeBarVisibilityMode(data.barVisibilityMode);
         data.maxBackgroundTabs = Math.max(1, Math.min(MAX_BACKGROUND_TABS, data.maxBackgroundTabs));
@@ -127,6 +129,14 @@ public final class TabbyConfig {
         return Boolean.TRUE.equals(data.showTabVitals);
     }
 
+    public static synchronized boolean showUnreadMessages() {
+        return Boolean.TRUE.equals(data.showUnreadMessages);
+    }
+
+    public static synchronized boolean autoReconnect() {
+        return Boolean.TRUE.equals(data.autoReconnect);
+    }
+
     public static synchronized int barScalePercent() {
         return data.barScalePercent;
     }
@@ -181,6 +191,18 @@ public final class TabbyConfig {
 
     public static synchronized void setShowTabVitals(boolean enabled) {
         data.showTabVitals = enabled;
+        save();
+    }
+
+    public static synchronized void setShowUnreadMessages(boolean enabled) {
+        data.showUnreadMessages = enabled;
+        if (!enabled) TabUnreadMessageManager.clear();
+        save();
+    }
+
+    public static synchronized void setAutoReconnect(boolean enabled) {
+        data.autoReconnect = enabled;
+        if (!enabled) TabReconnectManager.clear();
         save();
     }
 
@@ -348,6 +370,8 @@ public final class TabbyConfig {
         public Boolean notifyBackgroundDamage = Boolean.TRUE;
         public Boolean showDamageFlash = Boolean.TRUE;
         public Boolean showTabVitals = Boolean.TRUE;
+        public Boolean showUnreadMessages = Boolean.TRUE;
+        public Boolean autoReconnect = Boolean.TRUE;
         public int barScalePercent = 100;
         public String barColorPreset = "blue";
         public int barOpacityPercent = 90;

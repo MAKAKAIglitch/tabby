@@ -56,6 +56,10 @@ final class TabContextExecutor {
             return;
         }
 
+        if (tabId != activeId && TabCrashGuard.hasPendingFailure(tabId)) {
+            return;
+        }
+
         int previousId = currentContextId(activeId);
         if (previousId == tabId) {
             // Mark even active-tab work: setLevel/login handlers can trigger nested client ticks.
@@ -86,6 +90,7 @@ final class TabContextExecutor {
 
         Integer previousExecutionId = EXECUTION_CONTEXT.get();
         TabContext previousState = previous;
+        boolean isolatedFailure = false;
         if (previous != null) {
             if (previousExecutionId == null) {
                 // At the outermost packet boundary the visible context is stable.
@@ -101,12 +106,28 @@ final class TabContextExecutor {
             // Background packet handlers must not replace the visible Screen.
             target.applyTo(client, false);
             task.run();
-        } catch (RuntimeException | Error exception) {
-            LOGGER.debug("Packet task failed in tab {}", tabId, exception);
-            throw exception;
+        } catch (RuntimeException exception) {
+            if (tabId != activeId) {
+                isolatedFailure = true;
+                TabCrashGuard.queueBackgroundFailure(tabId, exception);
+            } else {
+                LOGGER.debug("Packet task failed in active tab {}", tabId, exception);
+                throw exception;
+            }
         } finally {
             try {
-                target.captureFrom(client);
+                if (!isolatedFailure) {
+                    try {
+                        target.captureFrom(client);
+                    } catch (RuntimeException exception) {
+                        if (tabId != activeId) {
+                            isolatedFailure = true;
+                            TabCrashGuard.queueBackgroundFailure(tabId, exception);
+                        } else {
+                            throw exception;
+                        }
+                    }
+                }
             } finally {
                 try {
                     if (previousState != null) {

@@ -100,9 +100,6 @@ final class TabConnectionManager {
         if (context.disconnecting) {
             return true;
         }
-        if (TabRegistry.size() <= 1) {
-            return false;
-        }
 
         Connection listenerConnection = ((TabOwnedListener) listener).tabby$getConnection();
         boolean ownsListener = context.clientConnection == listener
@@ -115,6 +112,14 @@ final class TabConnectionManager {
             // belongs to this inactive tab and must never reach Minecraft.disconnect().
             LOGGER.debug("Cancelled stale disconnect callback for tab {} while {} tabs remain", ownerId, TabRegistry.size());
             return true;
+        }
+
+        boolean replacingOldConnection = context.connecting && context.replacingConnection == listenerConnection;
+        if (!replacingOldConnection && !TabManager.isClientDisconnectInProgress()) {
+            TabReconnectManager.onUnexpectedDisconnect(context, listenerConnection, details.reason());
+        }
+        if (TabRegistry.size() <= 1) {
+            return false;
         }
 
         Minecraft currentClient = client;
@@ -167,6 +172,9 @@ final class TabConnectionManager {
         }
         if (context.disconnecting) {
             return true;
+        }
+        if (closeConnection) {
+            TabReconnectManager.cancel(tabId);
         }
 
         Runnable operation = () -> disconnectInstalledTabToMenu(context, reason, closeConnection);
@@ -360,6 +368,9 @@ final class TabConnectionManager {
         if (target == null) {
             return false;
         }
+        if (!TabReconnectManager.isAutomaticLaunch(targetId)) {
+            TabReconnectManager.cancel(targetId);
+        }
 
         String username = client.getUser().getName();
         for (TabContext existing : TabRegistry.values()) {
@@ -458,6 +469,12 @@ final class TabConnectionManager {
         }
 
         TabContext context = TabRegistry.get(TabManager.currentContextId());
+        if (context != null
+            && screen instanceof net.minecraft.client.gui.screens.DisconnectedScreen
+            && TabReconnectManager.isInFlight(context.id())) {
+            context.connecting = false;
+            TabReconnectManager.onRetryFailed(context.id());
+        }
         if (context == null || !context.connecting) {
             return false;
         }

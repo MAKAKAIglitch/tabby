@@ -8,6 +8,7 @@
     "ConnectionMixin",
     "ClientPacketListenerMixin",
     "ClientPacketListenerDamageMixin",
+    "ChatComponentMixin",
     "MinecraftMixin",
     "MinecraftAccessor",
     "ChatComponentAccessor",

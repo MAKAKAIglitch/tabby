@@ -213,9 +213,12 @@ public final class TabBar {
             int pingWidth = slot.pingLabel().isEmpty() ? 0 : client.font.width(slot.pingLabel()) + 5;
             int memoryWidth = slot.memoryLabel().isEmpty() ? 0 : client.font.width(slot.memoryLabel()) + 5;
             int vitalsWidth = slot.vitalsLabel().isEmpty() ? 0 : client.font.width(slot.vitalsLabel()) + 5;
+            int unreadWidth = slot.unreadLabel().isEmpty() ? 0 : client.font.width(slot.unreadLabel()) + 5;
+            int statusWidth = slot.statusLabel().isEmpty() ? 0 : client.font.width(slot.statusLabel()) + 5;
             int titleMaxWidth = Math.max(
                 10,
-                slot.width() - closeWidth() - 12 - pinnedOffset - pingWidth - memoryWidth - vitalsWidth - 4
+                slot.width() - closeWidth() - 12 - pinnedOffset - pingWidth
+                    - memoryWidth - vitalsWidth - unreadWidth - statusWidth - 4
             );
             String title = truncate(client, slot.title(), titleMaxWidth);
 
@@ -244,9 +247,30 @@ public final class TabBar {
                 graphics.drawString(
                     client.font,
                     slot.memoryLabel(),
-                    right - closeWidth() - pingWidth - vitalsWidth - client.font.width(slot.memoryLabel()) - 4,
+                    right - closeWidth() - pingWidth - vitalsWidth - statusWidth
+                        - client.font.width(slot.memoryLabel()) - 4,
                     textY,
                     activeAccentColor(),
+                    false
+                );
+            }
+            if (!slot.statusLabel().isEmpty()) {
+                graphics.drawString(
+                    client.font,
+                    slot.statusLabel(),
+                    right - closeWidth() - pingWidth - client.font.width(slot.statusLabel()) - 4,
+                    textY,
+                    slot.failed() ? 0xFFFF5555 : 0xFFFFC66D,
+                    false
+                );
+            }
+            if (!slot.unreadLabel().isEmpty()) {
+                graphics.drawString(
+                    client.font,
+                    slot.unreadLabel(),
+                    right - closeWidth() - pingWidth - statusWidth - client.font.width(slot.unreadLabel()) - 4,
+                    textY,
+                    TabUnreadMessageManager.hasMention(slot.id()) ? 0xFFFFB45C : 0xFF8FD5FF,
                     false
                 );
             }
@@ -254,7 +278,8 @@ public final class TabBar {
                 graphics.drawString(
                     client.font,
                     slot.vitalsLabel(),
-                    right - closeWidth() - pingWidth - client.font.width(slot.vitalsLabel()) - 4,
+                    right - closeWidth() - pingWidth - statusWidth - unreadWidth
+                        - client.font.width(slot.vitalsLabel()) - 4,
                     textY,
                     0xFFFFB7B7,
                     false
@@ -386,6 +411,9 @@ public final class TabBar {
             String vitalsLabel = !active && TabbyConfig.showTabVitals() && context.player != null
                 ? "♥" + Math.round(context.player.getHealth()) + " ◆" + context.player.getFoodData().getFoodLevel()
                 : "";
+            String unreadLabel = !active ? TabUnreadMessageManager.badge(context.id()) : "";
+            boolean failed = TabCrashGuard.hasFailure(context.id());
+            String statusLabel = failed ? "!" : TabReconnectManager.statusLabel(context.id());
             float damageFlash = !active ? TabDamageNotificationManager.damageFlashProgress(context.id()) : 0.0F;
             slots.add(new TabSlot(
                 context.id(),
@@ -397,6 +425,9 @@ public final class TabBar {
                 pingLabel,
                 memoryLabel,
                 vitalsLabel,
+                unreadLabel,
+                statusLabel,
+                failed,
                 damageFlash
             ));
             x += tabWidth + gap();
@@ -561,7 +592,8 @@ public final class TabBar {
 
     private record TabSlot(
         int id, String title, int x, int width, boolean active, boolean pinned,
-        String pingLabel, String memoryLabel, String vitalsLabel, float damageFlash
+        String pingLabel, String memoryLabel, String vitalsLabel, String unreadLabel,
+        String statusLabel, boolean failed, float damageFlash
     ) {
     }
 
