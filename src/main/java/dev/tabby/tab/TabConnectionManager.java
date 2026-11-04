@@ -219,6 +219,7 @@ final class TabConnectionManager {
         context.level = null;
         context.player = null;
         context.gameMode = null;
+        context.deferredBackgroundKnockback = false;
         context.clientConnection = null;
         context.networkConnection = null;
         context.packetListener = null;

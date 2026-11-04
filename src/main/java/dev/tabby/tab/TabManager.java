@@ -382,6 +382,7 @@ public final class TabManager {
             if (loginCompleted) {
                 context.connectedAtLeastOnce = true;
                 context.lastBackgroundFailure = null;
+                context.deferredBackgroundKnockback = false;
                 TabReconnectManager.onLoginSucceeded(ownerId);
             }
             context.worldTransitioning = false;

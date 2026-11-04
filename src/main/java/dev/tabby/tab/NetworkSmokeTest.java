@@ -183,6 +183,7 @@ public final class NetworkSmokeTest {
             verifyBackgroundDamageNotificationIsolation();
             verifyDamageFlashAndVitalsDefaults();
             verifyReconnectDefaults();
+            verifyDeferredBackgroundKnockbackIsNotReplayed();
 
             prepareContentIsolation();
             LOGGER.info("Network smoke test: seeded different chat messages, inventory items, and named entities on both servers");
@@ -241,6 +242,49 @@ public final class NetworkSmokeTest {
             player.input.leftImpulse == 0.0F && player.input.forwardImpulse == 0.0F,
             "Switching tabs left stale movement impulses cached for the " + tabLabel
         );
+    }
+
+    private static void verifyDeferredBackgroundKnockbackIsNotReplayed() {
+        int originalActiveId = TabManager.activeId();
+        TabContext active = context(originalActiveId);
+        TabContext background = context(originalActiveId == 0 ? 1 : 0);
+        require(active != null && active.player != null, "Deferred knockback test requires an active player");
+        require(background != null && background.player != null,
+            "Deferred knockback test requires a background player");
+        require(active.clientConnection != null && background.clientConnection != null,
+            "Deferred knockback test requires both play listeners");
+
+        Vec3 packetVelocity = new Vec3(0.42, 0.36, -0.28);
+        background.player.setDeltaMovement(packetVelocity);
+        TabManager.runIn(background.id(), () ->
+            TabManager.onPlayerVelocity(background.clientConnection, background.player.getId())
+        );
+        require(background.deferredBackgroundKnockback,
+            "A background velocity packet was not tagged as deferred");
+
+        TabManager.switchTo(background.id());
+        require(background.player.getDeltaMovement().equals(Vec3.ZERO),
+            "A background velocity impulse was replayed when switching back to its tab");
+        require(!background.deferredBackgroundKnockback,
+            "The deferred background knockback marker was not cleared on activation");
+
+        TabManager.switchTo(originalActiveId);
+        Vec3 explosionVelocity = new Vec3(-0.31, 0.48, 0.22);
+        background.player.setDeltaMovement(explosionVelocity);
+        TabManager.runIn(background.id(), () ->
+            TabManager.onPlayerExplosion(background.clientConnection,
+                explosionVelocity.x, explosionVelocity.y, explosionVelocity.z)
+        );
+        require(background.deferredBackgroundKnockback,
+            "Background explosion knockback was not tagged as deferred");
+        TabManager.switchTo(background.id());
+        require(background.player.getDeltaMovement().equals(Vec3.ZERO),
+            "A background explosion impulse was replayed when switching back to its tab");
+        require(!background.deferredBackgroundKnockback,
+            "The deferred explosion knockback marker was not cleared on activation");
+
+        TabManager.switchTo(originalActiveId);
+        LOGGER.info("Network smoke test: velocity and explosion impulses received in a hidden tab are not replayed as delayed knockback on activation");
     }
 
     private static void verifyDamageFlashAndVitalsDefaults() {
