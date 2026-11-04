@@ -64,7 +64,7 @@ A new tab starts with a clean context and a `TitleScreen`. Update titles on succ
 
 ## Stage 4 — stability
 
-Reset pressed inputs and mouse-grab state during a switch; stop audio from the tab being left; rebuild chunks when returning to a tab; limit background tabs (default 4, configurable); cleanly close all connections on client exit. Support at most one single-player world in the MVP; other tabs are networked.
+Reset pressed inputs and mouse-grab state during a switch; stop audio from the tab being left; rebuild chunks when returning to a tab; limit background tabs (default 3 for new configurations, configurable); cleanly close all connections on client exit. Support at most one single-player world in the MVP; other tabs are networked.
 
 ## Stage 5 — configuration and polish
 
@@ -94,3 +94,7 @@ Test on Fabric API alone, then separately with Sodium, Iris, Lithium, and Mod Me
 - [x] Add a double-clickable `build-tabby.bat` launcher that remains open after success/failure.
 - [x] Use the existing Java 21 selector/bootstrap, export the final remapped JAR to `dist/Tabby-1.21.4.jar`, verify the file is non-empty, and write the full console output to `build-tabby.log`.
 - [ ] Verify the Windows build launcher and exported JAR in GitHub Actions.
+
+
+- [x] Settings and localization refresh — three-page Mod Menu screen (General / Appearance / Performance), Russian and English strings, configurable server-address/server-name tab labels (address by default), bar visibility, ping/RAM labels, seven color themes, scale/opacity, and menu visibility.
+- [x] Safe memory reduction — new configuration default lowered to three background tabs; existing saved limits are preserved. Removed a periodic temporary HashSet allocation from memory-estimate cache cleanup. Hidden worlds, live connections, and renderer contexts remain intact.

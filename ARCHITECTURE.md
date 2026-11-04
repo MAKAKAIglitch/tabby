@@ -20,7 +20,7 @@ The architecture separates the state boundaries that must remain correct during 
 | `TabContextExecutor` | Scoped global-state installation, nested execution marker, restoration after packet tasks | Ownership discovery or tab lifecycle |
 | `ConnectionOwnershipRegistry` | Identity mapping from `Connection` / `PacketListener` to tab IDs | Disconnect policy or Minecraft field mutation |
 | `TabRendererCompatibility` | Active-renderer gate and optional Voxy reflection hooks | Tab selection or world lifecycle |
-| `TabMemoryUsage` | Cached per-tab diagnostic estimates | Actual JVM heap accounting |
+| `TabMemoryUsage` | Cached per-tab diagnostic estimates and registry-backed stale-entry cleanup | Actual JVM heap accounting or world unloading |
 
 ## Invariants
 
@@ -44,3 +44,8 @@ The architecture separates the state boundaries that must remain correct during 
 ## Current limitations
 
 This remains an incremental refactor: world-transition recovery and top-level tick orchestration remain in `TabManager`, while tab lifecycle and network policy are delegated to dedicated coordinators. Chat, inventory, audio, entity and arbitrary third-party-mod state are not yet fully isolated between tabs.
+
+
+## User settings and memory policy
+
+The settings screen is split into General, Appearance, and Performance pages. UI text is supplied through Minecraft's standard `en_us` and `ru_ru` resource bundles. Server addresses are the default display label; the server-provided name remains available as a setting. New configurations use a three-background-tab limit to reduce retained world/chunk/render resources. Existing saved limits are not overwritten during migration. No background `ClientLevel`, connection, or renderer is unloaded as a memory shortcut, because those objects are part of the live-tab invariant.

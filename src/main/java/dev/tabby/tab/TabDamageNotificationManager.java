@@ -62,7 +62,7 @@ final class TabDamageNotificationManager {
                 return;
             }
 
-            String title = context.title();
+            String title = context.displayTitle();
             if (title == null || title.isBlank()) {
                 title = "Tab " + ownerId;
             }

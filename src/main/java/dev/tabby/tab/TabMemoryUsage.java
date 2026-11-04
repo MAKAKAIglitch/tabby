@@ -2,11 +2,11 @@ package dev.tabby.tab;
 
 import net.minecraft.client.multiplayer.ClientLevel;
 
+import net.minecraft.network.chat.Component;
+
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Cached heuristic for memory retained by each tab's world data.
@@ -27,12 +27,11 @@ public final class TabMemoryUsage {
     }
 
     public static void refresh(List<TabContext> contexts) {
-        Set<Integer> presentIds = new HashSet<>(contexts.size());
         for (TabContext context : contexts) {
-            presentIds.add(context.id());
             CACHE.put(context.id(), measure(context));
         }
-        CACHE.keySet().removeIf(id -> !presentIds.contains(id));
+        // Reuse the registry's O(1) membership index instead of allocating a temporary set.
+        CACHE.keySet().removeIf(id -> !TabRegistry.contains(id));
     }
 
     public static Sample sample(TabContext context) {
@@ -63,9 +62,16 @@ public final class TabMemoryUsage {
 
         public String hudLabel(String tabTitle) {
             String title = tabTitle == null || tabTitle.isBlank() ? "Main Menu" : tabTitle;
-            if (!this.hasWorld) return "Tabby | " + title + " | RAM ~" + this.estimatedMiB + " MB";
-            return "Tabby | " + title + " | RAM ~" + this.estimatedMiB
-                + " MB | " + this.loadedChunks + " chunks | " + this.trackedEntities + " entities";
+            if (!this.hasWorld) {
+                return Component.translatable("tabby.hud.menu", title, this.estimatedMiB).getString();
+            }
+            return Component.translatable(
+                "tabby.hud.world",
+                title,
+                this.estimatedMiB,
+                this.loadedChunks,
+                this.trackedEntities
+            ).getString();
         }
     }
 }

@@ -22,6 +22,30 @@ public final class ModMenuIntegrationSmokeTest {
     private ModMenuIntegrationSmokeTest() {
     }
 
+    private static List<String> labels(Screen screen) {
+        return screen.children().stream()
+            .filter(Button.class::isInstance)
+            .map(Button.class::cast)
+            .map(button -> button.getMessage().getString())
+            .toList();
+    }
+
+    private static void requireLabel(List<String> labels, String prefix) {
+        if (labels.stream().noneMatch(label -> label.startsWith(prefix))) {
+            throw new IllegalStateException("Tabby's settings screen is missing control: " + prefix);
+        }
+    }
+
+    private static void pressPage(Screen screen, String pageName) {
+        Button page = screen.children().stream()
+            .filter(Button.class::isInstance)
+            .map(Button.class::cast)
+            .filter(button -> button.getMessage().getString().contains(pageName))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Tabby's settings page is missing: " + pageName));
+        page.onPress();
+    }
+
     public static void verify() {
         EntrypointContainer<ModMenuApi> container = FabricLoader.getInstance()
             .getEntrypointContainers("modmenu", ModMenuApi.class)
@@ -42,26 +66,23 @@ public final class ModMenuIntegrationSmokeTest {
             Minecraft.getInstance().getWindow().getGuiScaledWidth(),
             Minecraft.getInstance().getWindow().getGuiScaledHeight()
         );
-        List<String> buttonLabels = configScreen.children().stream()
-            .filter(Button.class::isInstance)
-            .map(Button.class::cast)
-            .map(button -> button.getMessage().getString())
-            .toList();
-        if (buttonLabels.size() < 10) {
-            throw new IllegalStateException("Tabby's Mod Menu settings screen did not initialize all controls");
-        }
+        List<String> buttonLabels = labels(configScreen);
+        requireLabel(buttonLabels, "Restore server addresses:");
+        requireLabel(buttonLabels, "Show tab bar in menus:");
+        requireLabel(buttonLabels, "Background damage alerts:");
 
-        for (String requiredLabel : List.of(
-            "HUD info plaque:",
-            "Tab bar size:",
-            "Tab bar color:",
-            "Tab bar opacity:"
-        )) {
-            if (buttonLabels.stream().noneMatch(label -> label.startsWith(requiredLabel))) {
-                throw new IllegalStateException("Tabby's Mod Menu settings screen is missing control: " + requiredLabel);
-            }
-        }
+        pressPage(configScreen, "Appearance");
+        buttonLabels = labels(configScreen);
+        requireLabel(buttonLabels, "Tab title:");
+        requireLabel(buttonLabels, "Tab bar visibility:");
+        requireLabel(buttonLabels, "Show server ping:");
+        requireLabel(buttonLabels, "Color theme:");
 
-        LOGGER.info("Compatibility test: Mod Menu settings screen, appearance controls, and HUD plaque toggle were initialized");
+        pressPage(configScreen, "Performance");
+        buttonLabels = labels(configScreen);
+        requireLabel(buttonLabels, "Maximum background tabs:");
+        requireLabel(buttonLabels, "Diagnostic HUD plaque:");
+
+        LOGGER.info("Compatibility test: all three Mod Menu settings pages and their controls were initialized");
     }
 }

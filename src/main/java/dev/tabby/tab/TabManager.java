@@ -117,7 +117,7 @@ public final class TabManager {
         tickRestoredServerAddresses(minecraft);
         TabConnectionManager.tickBackgroundConnections();
         TabDamageNotificationManager.tick(minecraft);
-        if (TabbyConfig.showHudInfo()) {
+        if (TabbyConfig.showHudInfo() || TabbyConfig.showTabMemoryLabel()) {
             if (++memoryRefreshTicks >= 40) {
                 memoryRefreshTicks = 0;
                 TabMemoryUsage.refresh(TabRegistry.values());

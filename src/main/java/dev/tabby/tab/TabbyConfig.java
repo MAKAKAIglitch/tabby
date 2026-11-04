@@ -22,7 +22,7 @@ import java.util.Locale;
  */
 public final class TabbyConfig {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tabby");
-    private static final int DEFAULT_BACKGROUND_TABS = 4;
+    private static final int DEFAULT_BACKGROUND_TABS = 3;
     private static final int MAX_BACKGROUND_TABS = 16;
     private static final int MAX_RESTORED_ADDRESSES = MAX_BACKGROUND_TABS + 1;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -46,6 +46,8 @@ public final class TabbyConfig {
         data = loaded == null ? new ConfigData() : loaded;
         // Preserve the default-on behaviour when older JSON files do not contain this setting.
         if (data.notifyBackgroundDamage == null) data.notifyBackgroundDamage = Boolean.TRUE;
+        data.tabTitleMode = normalizeTabTitleMode(data.tabTitleMode);
+        data.barVisibilityMode = normalizeBarVisibilityMode(data.barVisibilityMode);
         data.maxBackgroundTabs = Math.max(1, Math.min(MAX_BACKGROUND_TABS, data.maxBackgroundTabs));
         data.keyCreateTab = normalizeKey(data.keyCreateTab, GLFW.GLFW_KEY_T);
         data.keyCloseTab = normalizeKey(data.keyCloseTab, GLFW.GLFW_KEY_W);
@@ -83,6 +85,22 @@ public final class TabbyConfig {
         return data.showInMenus;
     }
 
+    public static synchronized String tabTitleMode() {
+        return data.tabTitleMode;
+    }
+
+    public static synchronized String barVisibilityMode() {
+        return data.barVisibilityMode;
+    }
+
+    public static synchronized boolean showPing() {
+        return data.showPing;
+    }
+
+    public static synchronized boolean showTabMemoryLabel() {
+        return data.showTabMemoryLabel;
+    }
+
     public static synchronized String inGameBarMode() {
         return data.inGameBarMode;
     }
@@ -109,6 +127,31 @@ public final class TabbyConfig {
 
     public static synchronized int barOpacityPercent() {
         return data.barOpacityPercent;
+    }
+
+    public static synchronized void setShowInMenus(boolean enabled) {
+        data.showInMenus = enabled;
+        save();
+    }
+
+    public static synchronized void setTabTitleMode(String mode) {
+        data.tabTitleMode = normalizeTabTitleMode(mode);
+        save();
+    }
+
+    public static synchronized void setBarVisibilityMode(String mode) {
+        data.barVisibilityMode = normalizeBarVisibilityMode(mode);
+        save();
+    }
+
+    public static synchronized void setShowPing(boolean enabled) {
+        data.showPing = enabled;
+        save();
+    }
+
+    public static synchronized void setShowTabMemoryLabel(boolean enabled) {
+        data.showTabMemoryLabel = enabled;
+        save();
     }
 
     public static synchronized void setShowHudInfo(boolean enabled) {
@@ -212,8 +255,26 @@ public final class TabbyConfig {
         }
         String normalized = colorPreset.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
-            case "blue", "purple", "green", "orange", "graphite" -> normalized;
+            case "blue", "purple", "green", "orange", "graphite", "cyan", "rose" -> normalized;
             default -> "blue";
+        };
+    }
+
+    private static String normalizeTabTitleMode(String mode) {
+        if (mode == null) return "address";
+        String normalized = mode.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "address", "server_name" -> normalized;
+            default -> "address";
+        };
+    }
+
+    private static String normalizeBarVisibilityMode(String mode) {
+        if (mode == null) return "always";
+        String normalized = mode.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "always", "hover_or_alt", "hidden" -> normalized;
+            default -> "always";
         };
     }
 
@@ -258,6 +319,10 @@ public final class TabbyConfig {
         public int keyNextTab = GLFW.GLFW_KEY_TAB;
         public int keySelectFirstTab = GLFW.GLFW_KEY_1;
         public boolean showInMenus = true;
+        public String tabTitleMode = "address";
+        public String barVisibilityMode = "always";
+        public boolean showPing = true;
+        public boolean showTabMemoryLabel = false;
         public String inGameBarMode = "hover_or_alt";
         public boolean showHudInfo = false;
         public Boolean notifyBackgroundDamage = Boolean.TRUE;

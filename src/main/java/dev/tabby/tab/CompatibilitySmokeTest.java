@@ -87,6 +87,7 @@ public final class CompatibilitySmokeTest {
         phaseTicks++;
         if (isJoined(context(0))) {
             LOGGER.info("Compatibility test for {}: network world loaded", MOD_ID);
+            TabTitleDisplaySmokeTest.verify(context(0));
             TabManager.createTab();
             require(TabManager.activeId() == 1, "Creating a second context did not select tab 1");
             require(TabManager.contexts().size() == 2, "Expected exactly two contexts in compatibility test");

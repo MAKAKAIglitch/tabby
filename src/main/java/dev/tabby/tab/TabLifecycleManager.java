@@ -32,8 +32,8 @@ final class TabLifecycleManager {
             SystemToast.add(
                 client.getToastManager(),
                 SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
-                Component.literal("Tabby"),
-                Component.literal("Background tab limit reached. Close a tab first.")
+                Component.translatable("tabby.toast.limit_title"),
+                Component.translatable("tabby.toast.limit_message")
             );
             LOGGER.debug("Tab creation rejected: background-tab limit {} reached", TabbyConfig.maxBackgroundTabs());
             return;

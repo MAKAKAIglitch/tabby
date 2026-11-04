@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.particle.ParticleEngine;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -198,6 +199,29 @@ public final class TabContext {
     }
 
     public String title() {
+        return this.title;
+    }
+
+    /**
+     * Returns the user-selected tab label without modifying the stored server title.
+     * Server address is the default; a missing server name falls back to the address.
+     */
+    public String displayTitle() {
+        if (this.serverData == null) {
+            if ("Main Menu".equals(this.title)) {
+                return Component.translatable("tabby.tab.main_menu").getString();
+            }
+            return this.title;
+        }
+
+        String address = this.serverData.ip == null || this.serverData.ip.isBlank()
+            ? null : this.serverData.ip;
+        String serverName = this.serverData.name == null || this.serverData.name.isBlank()
+            ? null : this.serverData.name;
+
+        if ("server_name".equals(TabbyConfig.tabTitleMode()) && serverName != null) return serverName;
+        if (address != null) return address;
+        if (serverName != null) return serverName;
         return this.title;
     }
 

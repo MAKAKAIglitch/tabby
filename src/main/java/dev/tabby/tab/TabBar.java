@@ -7,6 +7,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -66,6 +67,8 @@ public final class TabBar {
     private static int activeBackgroundColor() {
         return switch (TabbyConfig.barColorPreset()) {
             case "purple" -> 0xFF3D2F50;
+            case "cyan" -> 0xFF1F4450;
+            case "rose" -> 0xFF502F3B;
             case "green" -> 0xFF24463A;
             case "orange" -> 0xFF4A3525;
             case "graphite" -> 0xFF363B43;
@@ -76,6 +79,8 @@ public final class TabBar {
     private static int inactiveBackgroundColor() {
         return switch (TabbyConfig.barColorPreset()) {
             case "purple" -> 0xFF282033;
+            case "cyan" -> 0xFF1A3038;
+            case "rose" -> 0xFF35202A;
             case "green" -> 0xFF1C3029;
             case "orange" -> 0xFF33271E;
             case "graphite" -> 0xFF25292F;
@@ -86,6 +91,8 @@ public final class TabBar {
     private static int activeAccentColor() {
         return switch (TabbyConfig.barColorPreset()) {
             case "purple" -> 0xFFCB9BFF;
+            case "cyan" -> 0xFF71DCEC;
+            case "rose" -> 0xFFFF92B0;
             case "green" -> 0xFF77D6A6;
             case "orange" -> 0xFFFFB36C;
             case "graphite" -> 0xFFD0D7E0;
@@ -96,6 +103,8 @@ public final class TabBar {
     private static int hoverAccentColor() {
         return switch (TabbyConfig.barColorPreset()) {
             case "purple" -> 0xFF594171;
+            case "cyan" -> 0xFF2F6571;
+            case "rose" -> 0xFF704052;
             case "green" -> 0xFF35624E;
             case "orange" -> 0xFF6A4A2F;
             case "graphite" -> 0xFF4A515B;
@@ -106,6 +115,8 @@ public final class TabBar {
     private static int closeHoverColor() {
         return switch (TabbyConfig.barColorPreset()) {
             case "purple" -> 0xFF723B52;
+            case "cyan" -> 0xFF355C68;
+            case "rose" -> 0xFF794052;
             case "green" -> 0xFF365D4A;
             case "orange" -> 0xFF794224;
             case "graphite" -> 0xFF5A3C44;
@@ -120,7 +131,7 @@ public final class TabBar {
         initialized = true;
 
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-            if (!isVisibleOnScreen(screen)) {
+            if (!supportsTabBar(screen)) {
                 return;
             }
 
@@ -138,8 +149,27 @@ public final class TabBar {
         });
     }
 
+    private static boolean supportsTabBar(Screen screen) {
+        return (screen instanceof TitleScreen || screen instanceof PauseScreen)
+            && TabbyConfig.showInMenus();
+    }
+
     public static boolean isVisibleOnScreen(Screen screen) {
-        return screen instanceof TitleScreen || screen instanceof PauseScreen;
+        if (!supportsTabBar(screen)) return false;
+
+        return switch (TabbyConfig.barVisibilityMode()) {
+            case "hidden" -> false;
+            case "hover_or_alt" -> {
+                Minecraft client = Minecraft.getInstance();
+                long window = client.getWindow().getWindow();
+                boolean altDown = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
+                    || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
+                double mouseY = client.mouseHandler.ypos()
+                    * client.getWindow().getGuiScaledHeight() / client.getWindow().getScreenHeight();
+                yield altDown || (mouseY >= 0 && mouseY <= barTop() + barHeight() + 4);
+            }
+            default -> true;
+        };
     }
 
     public static void render(Minecraft client, GuiGraphics graphics) {
@@ -244,7 +274,7 @@ public final class TabBar {
         }
 
         TabMemoryUsage.Sample sample = TabMemoryUsage.sample(active);
-        String label = sample.hudLabel(active.title());
+        String label = sample.hudLabel(active.displayTitle());
         int padding = 5;
         int rightPadding = 7;
         int textWidth = client.font.width(label);
@@ -328,16 +358,19 @@ public final class TabBar {
         int x = leftMargin();
         for (TabContext context : contexts) {
             String pingLabel = "";
-            if (context.serverData != null && context.serverData.ip != null && !context.serverData.ip.isBlank()) {
+            if (TabbyConfig.showPing()
+                && context.serverData != null && context.serverData.ip != null && !context.serverData.ip.isBlank()) {
                 pingLabel = context.serverData.status != null && context.serverData.ping >= 0
                     ? context.serverData.ping + "ms"
                     : "—";
             }
             boolean active = context.id() == TabManager.activeId();
-            String memoryLabel = active && TabbyConfig.showHudInfo() ? TabMemoryUsage.sample(context).compactLabel() : "";
+            String memoryLabel = active && TabbyConfig.showTabMemoryLabel()
+                ? TabMemoryUsage.sample(context).compactLabel()
+                : "";
             slots.add(new TabSlot(
                 context.id(),
-                context.title(),
+                context.displayTitle(),
                 x,
                 tabWidth,
                 active,
@@ -491,7 +524,7 @@ public final class TabBar {
 
     private static String truncate(Minecraft client, String text, int maxWidth) {
         if (text == null || text.isBlank()) {
-            return "Main Menu";
+            return Component.translatable("tabby.tab.main_menu").getString();
         }
         if (client.font.width(text) <= maxWidth) {
             return text;
