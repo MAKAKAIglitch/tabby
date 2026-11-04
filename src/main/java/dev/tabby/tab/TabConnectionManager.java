@@ -530,6 +530,19 @@ final class TabConnectionManager {
                 continue;
             }
 
+            if (!replacingOldConnection
+                && !context.disconnecting
+                && !TabManager.isClientDisconnectInProgress()) {
+                // Connection.handleDisconnection() runs before ClientCommonPacketListenerImpl.onDisconnect().
+                // Start the retry while this context still identifies the Connection as its owner;
+                // the later listener callback may arrive after these references are cleared.
+                TabReconnectManager.onUnexpectedDisconnect(
+                    context,
+                    connection,
+                    Component.literal("Connection closed")
+                );
+            }
+
             if (context.localServer && context.level != null && !context.worldTransitioning) {
                 LOGGER.warn(
                     "Disconnect cleanup reached integrated-world tab {} while active tab {} owns the client (localServer={}, level={}, connectionMatch={}, listenerMatch={})",
