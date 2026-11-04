@@ -98,3 +98,6 @@ Test on Fabric API alone, then separately with Sodium, Iris, Lithium, and Mod Me
 
 - [x] Settings and localization refresh — three-page Mod Menu screen (General / Appearance / Performance), Russian and English strings, configurable server-address/server-name tab labels (address by default), bar visibility, ping/RAM labels, seven color themes, scale/opacity, and menu visibility.
 - [x] Safe memory reduction — new configuration default lowered to three background tabs; existing saved limits are preserved. Removed a periodic temporary HashSet allocation from memory-estimate cache cleanup. Hidden worlds, live connections, and renderer contexts remain intact.
+
+
+- [x] Switch movement-input regression — after Tabby releases global key mappings, each affected LocalPlayer refreshes its cached KeyboardInput state. Regression smoke test seeds stale movement keys on both players, switches tabs, and verifies that cached inputs clear while the target player's pending knockback velocity remains unchanged.

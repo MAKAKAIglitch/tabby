@@ -173,6 +173,16 @@ public final class TabContext {
         }
     }
 
+    /**
+     * Refreshes cached key state after Tabby releases global key mappings.
+     * This samples input only; it does not tick player physics or alter velocity.
+     */
+    public void refreshMovementInputAfterKeyRelease() {
+        if (this.player != null && this.player.input != null) {
+            this.player.input.tick();
+        }
+    }
+
     public void applyTo(Minecraft client, boolean applyScreen) {
         client.level = this.level;
         client.player = this.player;

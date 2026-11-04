@@ -26,6 +26,7 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.entity.player.Input;
 import net.minecraft.network.PacketListener;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
@@ -154,6 +155,7 @@ public final class NetworkSmokeTest {
         if (isJoined(context(1))) {
             validateConnections(client);
             verifyActiveWorldRecovery(client);
+            verifySwitchInputDoesNotCancelKnockback();
 
             TabManager.switchTo(0);
             Screen activeScreen = client.screen;
@@ -177,6 +179,55 @@ public final class NetworkSmokeTest {
             fail("Tab 1 did not join server B within " + JOIN_TIMEOUT_TICKS + " ticks: "
                 + connectionState(client, context(1)));
         }
+    }
+
+    private static void verifySwitchInputDoesNotCancelKnockback() {
+        int originalActiveId = TabManager.activeId();
+        TabContext previous = context(originalActiveId);
+        TabContext target = context(originalActiveId == 0 ? 1 : 0);
+        require(previous != null && previous.player != null, "Input reset test requires an active player");
+        require(target != null && target.player != null, "Input reset test requires a target player");
+
+        Vec3 expectedKnockback = new Vec3(0.375, 0.42, -0.25);
+        target.player.setDeltaMovement(expectedKnockback);
+        seedCachedMovementInput(previous.player);
+        seedCachedMovementInput(target.player);
+
+        TabManager.switchTo(target.id());
+        requireCachedMovementInputCleared(previous.player, "previous tab");
+        requireCachedMovementInputCleared(target.player, "target tab");
+        require(
+            target.player.getDeltaMovement().equals(expectedKnockback),
+            "Switching tabs changed the target player's pending knockback velocity"
+        );
+
+        TabManager.switchTo(originalActiveId);
+        requireCachedMovementInputCleared(target.player, "tab switched into background");
+        require(
+            target.player.getDeltaMovement().equals(expectedKnockback),
+            "Switching away discarded the target player's pending knockback velocity"
+        );
+        LOGGER.info("Network smoke test: tab switching clears stale cached keys without changing player knockback velocity");
+    }
+
+    private static void seedCachedMovementInput(net.minecraft.client.player.LocalPlayer player) {
+        player.input.keyPresses = new Input(true, true, true, true, true, true, true);
+        player.input.leftImpulse = 1.0F;
+        player.input.forwardImpulse = 1.0F;
+    }
+
+    private static void requireCachedMovementInputCleared(
+        net.minecraft.client.player.LocalPlayer player,
+        String tabLabel
+    ) {
+        require(
+            Input.EMPTY.equals(player.input.keyPresses),
+            "Switching tabs left stale key presses cached for the " + tabLabel
+        );
+        require(
+            player.input.leftImpulse == 0.0F && player.input.forwardImpulse == 0.0F,
+            "Switching tabs left stale movement impulses cached for the " + tabLabel
+        );
     }
 
     private static void verifyBackgroundDamageNotificationIsolation() {

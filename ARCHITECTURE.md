@@ -49,3 +49,8 @@ This remains an incremental refactor: world-transition recovery and top-level ti
 ## User settings and memory policy
 
 The settings screen is split into General, Appearance, and Performance pages. UI text is supplied through Minecraft's standard `en_us` and `ru_ru` resource bundles. Server addresses are the default display label; the server-provided name remains available as a setting. New configurations use a three-background-tab limit to reduce retained world/chunk/render resources. Existing saved limits are not overwritten during migration. No background `ClientLevel`, connection, or renderer is unloaded as a memory shortcut, because those objects are part of the live-tab invariant.
+
+
+## Movement input across tab switches
+
+A tab switch releases Minecraft's global key mappings. Each previous/target `LocalPlayer` then refreshes its own cached `ClientInput` once, so stale movement booleans from the last game tick cannot be replayed on the first tick after switching. This is input sampling only: it does not call player/world ticks or overwrite `deltaMovement`, so server-authoritative knockback remains intact.

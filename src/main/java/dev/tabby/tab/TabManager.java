@@ -729,6 +729,10 @@ public final class TabManager {
 
         try {
             KeyMapping.releaseAll();
+            if (previous != null) {
+                previous.refreshMovementInputAfterKeyRelease();
+            }
+            target.refreshMovementInputAfterKeyRelease();
             client.getSoundManager().stop();
             client.mouseHandler.setIgnoreFirstMove();
 
@@ -756,6 +760,7 @@ public final class TabManager {
             }
             client.setScreen(target.screen);
             KeyMapping.releaseAll();
+            target.refreshMovementInputAfterKeyRelease();
             client.mouseHandler.setIgnoreFirstMove();
             target.captureFrom(client);
             SimpleVoiceChatCompatibility.onActiveTabChanged(client);
@@ -768,6 +773,7 @@ public final class TabManager {
                 TabRendererCompatibility.resumeVoxyRenderer(previous.levelRenderer, previous.level, previous.id());
                 client.setScreen(previous.screen);
                 KeyMapping.releaseAll();
+                previous.refreshMovementInputAfterKeyRelease();
                 client.mouseHandler.setIgnoreFirstMove();
             }
             throw exception;
