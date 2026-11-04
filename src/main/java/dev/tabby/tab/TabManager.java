@@ -848,6 +848,14 @@ public final class TabManager {
         TabDamageNotificationManager.onPlayerDamage(listener, entityId);
     }
 
+    public static void onPlayerVelocity(ClientPacketListener listener, int entityId) {
+        TabMotionTracker.onPlayerVelocity(listener, entityId);
+    }
+
+    public static void onPlayerExplosion(ClientPacketListener listener, double x, double y, double z) {
+        TabMotionTracker.onPlayerExplosion(listener, x, y, z);
+    }
+
     public static void onBackgroundChatMessage(Component message) {
         TabUnreadMessageManager.onChatMessage(message);
     }
