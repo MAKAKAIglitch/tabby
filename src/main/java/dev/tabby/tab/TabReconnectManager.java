@@ -73,13 +73,28 @@ final class TabReconnectManager {
                 || context.clientConnection != null
                     && context.clientConnection.getConnection() == connection
         );
-        if (!isEligible(context, intentional)
-            || connection.isMemoryConnection()
-            || !connectionMatches
+        boolean eligible = isEligible(context, intentional);
+        if (!eligible || connection.isMemoryConnection() || !connectionMatches
             || context.connecting && (state == null || !state.inFlight)) {
+            LOGGER.warn(
+                "Skipped reconnect scheduling for tab {} (eligible={}, intentional={}, memory={}, ownerMatch={}, connectedOnce={}, localServer={}, serverData={}, disconnecting={}, connecting={}, retryInFlight={})",
+                tabId,
+                eligible,
+                intentional,
+                connection.isMemoryConnection(),
+                connectionMatches,
+                context != null && context.connectedAtLeastOnce,
+                context != null && context.localServer,
+                context == null ? null : context.serverData == null ? "null" : context.serverData.ip,
+                context != null && context.disconnecting,
+                context != null && context.connecting,
+                state != null && state.inFlight
+            );
             return;
         }
 
+        LOGGER.info("Accepted unexpected disconnect for tab {} ({}); scheduling recovery",
+            tabId, context.serverData.ip);
         state = RETRIES.get(tabId);
         if (state == null) {
             state = new RetryState(context.serverData, reason == null ? "Connection lost" : reason.getString());

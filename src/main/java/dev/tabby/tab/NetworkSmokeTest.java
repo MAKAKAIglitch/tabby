@@ -335,7 +335,8 @@ public final class NetworkSmokeTest {
             if (!unreadCountersVerified) verifyUnreadMessageBadges();
             savedServerAConnection = context(0).networkConnection;
             savedServerBConnection = context(1).networkConnection;
-            runRconCommand("TABBY_RCON_PORT_A", 25575, "kick @a");
+            String kickResponse = runRconCommand("TABBY_RCON_PORT_A", 25575, "kick @a");
+            LOGGER.info("Network smoke test: server A kick command response: {}", kickResponse);
             phase = Phase.WAIT_FOR_RECONNECT;
             phaseTicks = 0;
         } else if (phaseTicks > CONTENT_TIMEOUT_TICKS) {
@@ -362,11 +363,14 @@ public final class NetworkSmokeTest {
 
     private static void verifyReconnectDefaults() {
         TabContext remote = context(1);
+        TabContext backgroundRemote = context(0);
         require(TabbyConfig.autoReconnect(), "Automatic reconnect must be enabled by default");
         require(TabReconnectManager.MAX_ATTEMPTS == 5, "Automatic reconnect attempt limit changed unexpectedly");
         require(TabReconnectManager.RETRY_DELAY_TICKS == 100, "Automatic reconnect delay must be five seconds");
         require(TabReconnectManager.isEligible(remote, false),
-            "A previously connected remote tab was not eligible for automatic reconnect");
+            "A previously connected active remote tab was not eligible for automatic reconnect");
+        require(TabReconnectManager.isEligible(backgroundRemote, false),
+            "A previously connected background remote tab was not eligible for automatic reconnect");
         require(!TabReconnectManager.isEligible(remote, true),
             "An intentional disconnect was incorrectly eligible for automatic reconnect");
         boolean previousLocalServer = remote.localServer;
@@ -407,7 +411,12 @@ public final class NetworkSmokeTest {
             phaseTicks = 0;
             LOGGER.info("Network smoke test: background server A reconnected without replacing server B's live session");
         } else if (phaseTicks > JOIN_TIMEOUT_TICKS) {
-            fail("Background server A did not reconnect within " + JOIN_TIMEOUT_TICKS + " ticks");
+            TabContext failed = contextOrNull(0);
+            fail("Background server A did not reconnect within " + JOIN_TIMEOUT_TICKS + " ticks; "
+                + connectionState(client, failed)
+                + ", eligible=" + TabReconnectManager.isEligible(failed, false)
+                + ", retryScheduled=" + TabReconnectManager.isScheduled(0)
+                + ", attempts=" + TabReconnectManager.attempts(0));
         }
     }
 

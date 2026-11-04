@@ -87,6 +87,7 @@ final class TabConnectionManager {
 
         int ownerId = ConnectionOwnershipRegistry.ownerIdFor(listener);
         if (ownerId < 0) {
+            LOGGER.warn("Could not scope disconnect callback for unowned listener {}", listener.getClass().getSimpleName());
             return false;
         }
 
@@ -516,6 +517,12 @@ final class TabConnectionManager {
     static void cleanupDisconnectedConnection(Connection connection) {
         Minecraft client = TabManager.clientInstance();
         PacketListener disconnectedListener = connection.getPacketListener();
+        LOGGER.debug(
+            "Connection cleanup observed {} (listener={}, owner={})",
+            System.identityHashCode(connection),
+            disconnectedListener == null ? "null" : disconnectedListener.getClass().getSimpleName(),
+            ConnectionOwnershipRegistry.ownerIdFor(disconnectedListener)
+        );
 
         for (TabContext context : TabRegistry.values()) {
             boolean replacingOldConnection = context.connecting && context.replacingConnection == connection;
