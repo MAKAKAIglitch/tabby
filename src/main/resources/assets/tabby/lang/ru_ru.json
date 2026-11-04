@@ -58,5 +58,7 @@
   "tabby.settings.memory_note": "Меньше вкладок — меньше расход ОЗУ",
   "tabby.settings.memory_note_secondary": "Миры остаются загруженными, чтобы сохранить их состояние и соединения при переключении.",
   "tabby.settings.appearance_note": "Изменения сохраняются автоматически и применяются к панели вкладок.",
-  "tabby.settings.keyboard_note": "Для команд используется Ctrl. Ctrl+1–9 выбирает вкладку по номеру."
+  "tabby.settings.keyboard_note": "Для команд используется Ctrl. Ctrl+1–9 выбирает вкладку по номеру.",
+  "tabby.settings.damage_flash": "Красное мерцание вкладки при уроне: %s",
+  "tabby.settings.tab_vitals": "Показывать здоровье и сытость на вкладках: %s"
 }

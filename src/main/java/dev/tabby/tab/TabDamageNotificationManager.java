@@ -24,13 +24,15 @@ final class TabDamageNotificationManager {
 
     private static final Map<Integer, PendingDamage> PENDING = new LinkedHashMap<>();
     private static final Map<Integer, Long> LAST_NOTIFICATION_TICK = new HashMap<>();
+    private static final Map<Integer, Long> DAMAGE_FLASH_UNTIL = new HashMap<>();
+    private static final long DAMAGE_FLASH_DURATION_TICKS = 12L;
     private static long clientTick;
 
     private TabDamageNotificationManager() {
     }
 
     static void onPlayerDamage(ClientPacketListener listener, int entityId) {
-        if (listener == null || !TabbyConfig.notifyBackgroundDamage()) {
+        if (listener == null) {
             return;
         }
 
@@ -45,7 +47,7 @@ final class TabDamageNotificationManager {
         }
 
         Runnable scopedRecord = () -> {
-            if (!TabbyConfig.notifyBackgroundDamage() || ownerId == TabRegistry.activeId()) {
+            if (ownerId == TabRegistry.activeId()) {
                 return;
             }
 
@@ -62,16 +64,22 @@ final class TabDamageNotificationManager {
                 return;
             }
 
-            String title = context.displayTitle();
-            if (title == null || title.isBlank()) {
-                title = "Tab " + ownerId;
+            if (TabbyConfig.showDamageFlash()) {
+                DAMAGE_FLASH_UNTIL.put(ownerId, clientTick + DAMAGE_FLASH_DURATION_TICKS);
             }
 
-            PendingDamage previous = PENDING.get(ownerId);
-            int hits = previous == null || previous.connection() != connection
-                ? 1
-                : previous.hits() + 1;
-            PENDING.put(ownerId, new PendingDamage(title, hits, connection));
+            if (TabbyConfig.notifyBackgroundDamage()) {
+                String title = context.displayTitle();
+                if (title == null || title.isBlank()) {
+                    title = "Tab " + ownerId;
+                }
+
+                PendingDamage previous = PENDING.get(ownerId);
+                int hits = previous == null || previous.connection() != connection
+                    ? 1
+                    : previous.hits() + 1;
+                PENDING.put(ownerId, new PendingDamage(title, hits, connection));
+            }
         };
 
         Runnable onClientThread = () -> {
@@ -93,12 +101,12 @@ final class TabDamageNotificationManager {
         if (!TabbyConfig.notifyBackgroundDamage()) {
             PENDING.clear();
             LAST_NOTIFICATION_TICK.clear();
-            return;
         }
 
-        // Advance the cooldown clock even while the queue is empty.
+        // Advance visual timers even while the notification queue is empty.
         clientTick++;
-        if (client == null || client.gui == null || PENDING.isEmpty()) {
+        DAMAGE_FLASH_UNTIL.entrySet().removeIf(entry -> entry.getValue() <= clientTick);
+        if (!TabbyConfig.notifyBackgroundDamage() || client == null || client.gui == null || PENDING.isEmpty()) {
             return;
         }
 
@@ -139,11 +147,21 @@ final class TabDamageNotificationManager {
     static void removeTab(int tabId) {
         PENDING.remove(tabId);
         LAST_NOTIFICATION_TICK.remove(tabId);
+        DAMAGE_FLASH_UNTIL.remove(tabId);
+    }
+
+    static float damageFlashProgress(int tabId) {
+        if (!TabbyConfig.showDamageFlash()) return 0.0F;
+        Long until = DAMAGE_FLASH_UNTIL.get(tabId);
+        if (until == null) return 0.0F;
+        long remaining = until - clientTick;
+        return remaining <= 0 ? 0.0F : Math.min(1.0F, remaining / (float) DAMAGE_FLASH_DURATION_TICKS);
     }
 
     static void clear() {
         PENDING.clear();
         LAST_NOTIFICATION_TICK.clear();
+        DAMAGE_FLASH_UNTIL.clear();
         clientTick = 0L;
     }
 

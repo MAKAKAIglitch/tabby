@@ -170,6 +170,7 @@ public final class NetworkSmokeTest {
             validateConnections(client);
             verifyTabStripInteractions(client);
             verifyBackgroundDamageNotificationIsolation();
+            verifyDamageFlashAndVitalsDefaults();
 
             prepareContentIsolation();
             LOGGER.info("Network smoke test: seeded different chat messages, inventory items, and named entities on both servers");
@@ -230,6 +231,16 @@ public final class NetworkSmokeTest {
         );
     }
 
+    private static void verifyDamageFlashAndVitalsDefaults() {
+        require(TabbyConfig.showDamageFlash(), "Damage flash must be enabled by default");
+        require(TabbyConfig.showTabVitals(), "Tab health and hunger must be enabled by default");
+        require(
+            TabDamageNotificationManager.damageFlashProgress(-999) == 0.0F,
+            "Unknown tab must not show a damage flash"
+        );
+        LOGGER.info("Network smoke test: background damage flash and tab vitals default-on settings verified");
+    }
+
     private static void verifyBackgroundDamageNotificationIsolation() {
         int activeId = TabManager.activeId();
         TabContext active = context(activeId);
@@ -263,7 +274,25 @@ public final class NetworkSmokeTest {
         );
 
         TabDamageNotificationManager.clearPending(background.id());
-        LOGGER.info("Network smoke test: only damage to the LocalPlayer on an inactive tab queues an alert");
+
+        TabbyConfig.setNotifyBackgroundDamage(false);
+        try {
+            TabManager.runIn(background.id(), () ->
+                TabManager.onPlayerDamage(background.clientConnection, background.player.getId())
+            );
+            require(
+                TabDamageNotificationManager.pendingDamageCount(background.id()) == 0,
+                "Disabling chat alerts still queued a notification"
+            );
+            require(
+                TabDamageNotificationManager.damageFlashProgress(background.id()) > 0.0F,
+                "Disabling chat alerts incorrectly disabled the independent damage flash"
+            );
+        } finally {
+            TabbyConfig.setNotifyBackgroundDamage(true);
+            TabDamageNotificationManager.clearPending(background.id());
+        }
+        LOGGER.info("Network smoke test: damage flash remains independent from chat-alert setting");
     }
 
     private static void prepareContentIsolation() {

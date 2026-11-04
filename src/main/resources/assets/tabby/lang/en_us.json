@@ -58,5 +58,7 @@
   "tabby.settings.memory_note": "Lower tab limits use less RAM",
   "tabby.settings.memory_note_secondary": "Live worlds stay loaded so switching tabs keeps their state and connections.",
   "tabby.settings.appearance_note": "Changes are saved immediately and apply to the tab bar.",
-  "tabby.settings.keyboard_note": "Shortcuts use Ctrl. Ctrl+1–9 still selects tabs by position."
+  "tabby.settings.keyboard_note": "Shortcuts use Ctrl. Ctrl+1–9 still selects tabs by position.",
+  "tabby.settings.damage_flash": "Flash tab red on damage: %s",
+  "tabby.settings.tab_vitals": "Show health and hunger on tabs: %s"
 }

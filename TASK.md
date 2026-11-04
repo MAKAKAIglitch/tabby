@@ -101,3 +101,6 @@ Test on Fabric API alone, then separately with Sodium, Iris, Lithium, and Mod Me
 
 
 - [x] Switch movement-input regression — after Tabby releases global key mappings, each affected LocalPlayer refreshes its cached KeyboardInput state. Regression smoke test seeds stale movement keys on both players, switches tabs, and verifies that cached inputs clear while the target player's pending knockback velocity remains unchanged.
+
+
+- [x] Background tab damage feedback — briefly flash the damaged hidden tab red and show that tab's own health and hunger in its tab-strip label; both settings default on and can be independently disabled.

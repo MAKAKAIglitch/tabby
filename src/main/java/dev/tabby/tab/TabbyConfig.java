@@ -46,6 +46,8 @@ public final class TabbyConfig {
         data = loaded == null ? new ConfigData() : loaded;
         // Preserve the default-on behaviour when older JSON files do not contain this setting.
         if (data.notifyBackgroundDamage == null) data.notifyBackgroundDamage = Boolean.TRUE;
+        if (data.showDamageFlash == null) data.showDamageFlash = Boolean.TRUE;
+        if (data.showTabVitals == null) data.showTabVitals = Boolean.TRUE;
         data.tabTitleMode = normalizeTabTitleMode(data.tabTitleMode);
         data.barVisibilityMode = normalizeBarVisibilityMode(data.barVisibilityMode);
         data.maxBackgroundTabs = Math.max(1, Math.min(MAX_BACKGROUND_TABS, data.maxBackgroundTabs));
@@ -117,6 +119,14 @@ public final class TabbyConfig {
         return Boolean.TRUE.equals(data.notifyBackgroundDamage);
     }
 
+    public static synchronized boolean showDamageFlash() {
+        return Boolean.TRUE.equals(data.showDamageFlash);
+    }
+
+    public static synchronized boolean showTabVitals() {
+        return Boolean.TRUE.equals(data.showTabVitals);
+    }
+
     public static synchronized int barScalePercent() {
         return data.barScalePercent;
     }
@@ -161,6 +171,16 @@ public final class TabbyConfig {
 
     public static synchronized void setNotifyBackgroundDamage(boolean enabled) {
         data.notifyBackgroundDamage = enabled;
+        save();
+    }
+
+    public static synchronized void setShowDamageFlash(boolean enabled) {
+        data.showDamageFlash = enabled;
+        save();
+    }
+
+    public static synchronized void setShowTabVitals(boolean enabled) {
+        data.showTabVitals = enabled;
         save();
     }
 
@@ -326,6 +346,8 @@ public final class TabbyConfig {
         public String inGameBarMode = "hover_or_alt";
         public boolean showHudInfo = false;
         public Boolean notifyBackgroundDamage = Boolean.TRUE;
+        public Boolean showDamageFlash = Boolean.TRUE;
+        public Boolean showTabVitals = Boolean.TRUE;
         public int barScalePercent = 100;
         public String barColorPreset = "blue";
         public int barOpacityPercent = 90;

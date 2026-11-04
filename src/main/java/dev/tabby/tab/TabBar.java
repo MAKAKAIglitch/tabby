@@ -189,7 +189,11 @@ public final class TabBar {
             int bottom = barTop() + barHeight();
             int background = slot.active() ? withOpacity(activeBackgroundColor()) : withOpacity(inactiveBackgroundColor());
             graphics.fill(slot.x(), barTop(), right, bottom, background);
-            if (slot.active()) {
+            if (slot.damageFlash() > 0.0F) {
+                int alpha = Math.round(190.0F * slot.damageFlash());
+                graphics.fill(slot.x(), barTop(), right, bottom, (alpha << 24) | 0x00E53935);
+                graphics.fill(slot.x(), barTop(), right, barTop() + 2, 0xFFFF4545);
+            } else if (slot.active()) {
                 graphics.fill(slot.x(), barTop(), right, barTop() + 2, activeAccentColor());
             }
             if (dragStarted && slot.id() == draggingTabId) {
@@ -208,9 +212,10 @@ public final class TabBar {
             int pinnedOffset = slot.pinned() ? 11 : 0;
             int pingWidth = slot.pingLabel().isEmpty() ? 0 : client.font.width(slot.pingLabel()) + 5;
             int memoryWidth = slot.memoryLabel().isEmpty() ? 0 : client.font.width(slot.memoryLabel()) + 5;
+            int vitalsWidth = slot.vitalsLabel().isEmpty() ? 0 : client.font.width(slot.vitalsLabel()) + 5;
             int titleMaxWidth = Math.max(
                 10,
-                slot.width() - closeWidth() - 12 - pinnedOffset - pingWidth - memoryWidth - 4
+                slot.width() - closeWidth() - 12 - pinnedOffset - pingWidth - memoryWidth - vitalsWidth - 4
             );
             String title = truncate(client, slot.title(), titleMaxWidth);
 
@@ -239,9 +244,19 @@ public final class TabBar {
                 graphics.drawString(
                     client.font,
                     slot.memoryLabel(),
-                    right - closeWidth() - pingWidth - client.font.width(slot.memoryLabel()) - 4,
+                    right - closeWidth() - pingWidth - vitalsWidth - client.font.width(slot.memoryLabel()) - 4,
                     textY,
                     activeAccentColor(),
+                    false
+                );
+            }
+            if (!slot.vitalsLabel().isEmpty()) {
+                graphics.drawString(
+                    client.font,
+                    slot.vitalsLabel(),
+                    right - closeWidth() - pingWidth - client.font.width(slot.vitalsLabel()) - 4,
+                    textY,
+                    0xFFFFB7B7,
                     false
                 );
             }
@@ -368,6 +383,10 @@ public final class TabBar {
             String memoryLabel = active && TabbyConfig.showTabMemoryLabel()
                 ? TabMemoryUsage.sample(context).compactLabel()
                 : "";
+            String vitalsLabel = !active && TabbyConfig.showTabVitals() && context.player != null
+                ? "♥" + Math.round(context.player.getHealth()) + " ◆" + context.player.getFoodData().getFoodLevel()
+                : "";
+            float damageFlash = !active ? TabDamageNotificationManager.damageFlashProgress(context.id()) : 0.0F;
             slots.add(new TabSlot(
                 context.id(),
                 context.displayTitle(),
@@ -376,7 +395,9 @@ public final class TabBar {
                 active,
                 context.pinned,
                 pingLabel,
-                memoryLabel
+                memoryLabel,
+                vitalsLabel,
+                damageFlash
             ));
             x += tabWidth + gap();
         }
@@ -538,7 +559,10 @@ public final class TabBar {
         return candidate.isEmpty() ? ellipsis : candidate + ellipsis;
     }
 
-    private record TabSlot(int id, String title, int x, int width, boolean active, boolean pinned, String pingLabel, String memoryLabel) {
+    private record TabSlot(
+        int id, String title, int x, int width, boolean active, boolean pinned,
+        String pingLabel, String memoryLabel, String vitalsLabel, float damageFlash
+    ) {
     }
 
     private record Layout(int left, int right, int plusX, List<TabSlot> tabs, int mouseX, int mouseY) {

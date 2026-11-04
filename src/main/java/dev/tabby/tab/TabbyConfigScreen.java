@@ -91,6 +91,12 @@ public final class TabbyConfigScreen extends Screen {
             Component.translatable("tabby.settings.color." + TabbyConfig.barColorPreset())), this::cycleColor);
         option(left + 12, 224, panelWidth - 24,
             Component.translatable("tabby.settings.bar_opacity", TabbyConfig.barOpacityPercent()), this::cycleOpacity);
+        option(left + 12, 254, panelWidth - 24,
+            toggle("tabby.settings.damage_flash", TabbyConfig.showDamageFlash()),
+            () -> TabbyConfig.setShowDamageFlash(!TabbyConfig.showDamageFlash()));
+        option(left + 12, 284, panelWidth - 24,
+            toggle("tabby.settings.tab_vitals", TabbyConfig.showTabVitals()),
+            () -> TabbyConfig.setShowTabVitals(!TabbyConfig.showTabVitals()));
     }
 
     private void performancePage() {
@@ -228,7 +234,7 @@ public final class TabbyConfigScreen extends Screen {
             g.drawString(font, Component.translatable("tabby.settings.memory_note"), left + 14, 170, 0xFFB8C5D1, false);
             g.drawString(font, Component.translatable("tabby.settings.memory_note_secondary"), left + 14, 184, 0xFF8F9EAC, false);
         } else if (page == Page.APPEARANCE) {
-            g.drawString(font, Component.translatable("tabby.settings.appearance_note"), left + 14, 253, 0xFF8F9EAC, false);
+            g.drawString(font, Component.translatable("tabby.settings.appearance_note"), left + 14, 314, 0xFF8F9EAC, false);
         } else {
             g.drawString(font, Component.translatable("tabby.settings.keyboard_note"), left + 14, 196, 0xFF8F9EAC, false);
         }

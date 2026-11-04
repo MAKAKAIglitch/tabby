@@ -54,3 +54,6 @@ The settings screen is split into General, Appearance, and Performance pages. UI
 ## Movement input across tab switches
 
 A tab switch releases Minecraft's global key mappings. Each previous/target `LocalPlayer` then refreshes its own cached `ClientInput` once, so stale movement booleans from the last game tick cannot be replayed on the first tick after switching. This is input sampling only: it does not call player/world ticks or overwrite `deltaMovement`, so server-authoritative knockback remains intact.
+
+
+Background damage feedback is owned by `TabDamageNotificationManager`: it stores a short per-tab visual timer when a hidden local player receives a damage event. The tab strip reads this timer and that context's own `LocalPlayer` health/food values. Both features default on and have independent settings. No player HUD, health, hunger, or world state is modified.
