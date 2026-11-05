@@ -43,7 +43,7 @@ public abstract class ConnectionMixin {
         }
 
         if (!this.tabby$reportedOutOfPhasePacket) {
-            this.tabby$reportedOutOfPhaseMovement = true;
+            this.tabby$reportedOutOfPhasePacket = true;
             TABBY_LOGGER.warn(
                 "Suppressed PLAY-only packet {} while connection phase is {} (listener={}, activeTab={})",
                 packet.getClass().getSimpleName(),
