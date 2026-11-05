@@ -6,7 +6,6 @@ import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.PacketListener;
 import net.minecraft.network.ProtocolInfo;
 import net.minecraft.network.protocol.PacketFlow;
 import org.slf4j.Logger;
@@ -23,14 +22,14 @@ public abstract class ConnectionMixin {
     private static final Logger TABBY_LOGGER = LoggerFactory.getLogger("Tabby");
 
     @Unique
-    private boolean tabby$reportedOutOfPhaseMovement;
+    private boolean tabby$reportedOutOfPhasePacket;
 
     @Inject(
         method = "doSendPacket(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;Z)V",
         at = @At("HEAD"),
         cancellable = true
     )
-    private void tabby$guardPlayMovementDuringConfiguration(
+    private void tabby$guardPlayPacketsDuringConfiguration(
         Packet<?> packet,
         PacketSendListener callbacks,
         boolean flush,
@@ -39,14 +38,14 @@ public abstract class ConnectionMixin {
         Connection connection = (Connection) (Object) this;
         PacketListener listener = connection.getPacketListener();
         ConnectionProtocol phase = listener == null ? null : listener.protocol();
-        if (!TabManager.shouldSuppressOutOfPhaseMovement(packet, phase)) {
+        if (!TabManager.shouldSuppressOutOfPhasePlayPacket(packet, phase)) {
             return;
         }
 
         if (!this.tabby$reportedOutOfPhaseMovement) {
             this.tabby$reportedOutOfPhaseMovement = true;
             TABBY_LOGGER.warn(
-                "Suppressed PLAY-only movement packet {} while connection phase is {} (listener={}, activeTab={})",
+                "Suppressed PLAY-only packet {} while connection phase is {} (listener={}, activeTab={})",
                 packet.getClass().getSimpleName(),
                 phase == null ? "unknown" : phase.id(),
                 listener == null ? "none" : listener.getClass().getSimpleName(),
