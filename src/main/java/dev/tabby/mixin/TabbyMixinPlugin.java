@@ -38,7 +38,7 @@ public final class TabbyMixinPlugin implements IMixinConfigPlugin {
     }
 
     @Override
-    public void acceptTargets(Set<String> myTargets, String mixinClassName) {
+    public void acceptTargets(Set<String> myTargets, List<String> otherTargets) {
     }
 
     @Override
