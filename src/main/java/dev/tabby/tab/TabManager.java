@@ -906,8 +906,8 @@ public final class TabManager {
         TabUnreadMessageManager.onChatMessage(message);
     }
 
-    public static boolean shouldSuppressOutOfPhaseMovement(Packet<?> packet, ConnectionProtocol phase) {
-        return TabConnectionManager.shouldSuppressOutOfPhaseMovement(packet, phase);
+    public static boolean shouldSuppressOutOfPhasePlayPacket(Packet<?> packet, ConnectionProtocol phase) {
+        return TabConnectionManager.shouldSuppressOutOfPhasePlayPacket(packet, phase);
     }
 
 
