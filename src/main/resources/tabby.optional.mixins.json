@@ -4,10 +4,12 @@
   "package": "dev.tabby.mixin.optional",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "MeteorAutoBreedMixin",
     "MeteorTickEventBusMixin",
     "SimpleVoiceChatClientManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 0
-  }
+  },
+  "plugin": "dev.tabby.mixin.TabbyMixinPlugin"
 }
