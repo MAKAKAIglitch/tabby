@@ -20,6 +20,7 @@ import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket;
+import net.minecraft.network.protocol.game.ServerboundClientTickEndPacket;
 import net.minecraft.network.DisconnectionDetails;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.TickablePacketListener;
@@ -41,15 +42,15 @@ final class TabConnectionManager {
     }
 
     /**
-     * Movement packets belong exclusively to PLAY. Reconfiguration can temporarily
-     * leave a LocalPlayer alive while the same channel has already switched to
-     * CONFIGURATION (for example during proxy/Limbo transitions). Such packets are
-     * invalid for the active encoder and must not be allowed to reach Netty.
+     * PLAY-only packets must never reach a connection whose outbound protocol has
+     * already moved to CONFIGURATION. Limbo/proxy servers can reconfigure a live
+     * client while Minecraft still has a LocalPlayer and emits its end-of-tick packet.
      */
-    static boolean shouldSuppressOutOfPhaseMovement(Packet<?> packet, ConnectionProtocol phase) {
-        boolean movementPacket = packet instanceof ServerboundMovePlayerPacket
-            || packet instanceof ServerboundMoveVehiclePacket;
-        return movementPacket && phase != ConnectionProtocol.PLAY;
+    static boolean shouldSuppressOutOfPhasePlayPacket(Packet<?> packet, ConnectionProtocol phase) {
+        boolean playOnlyPacket = packet instanceof ServerboundMovePlayerPacket
+            || packet instanceof ServerboundMoveVehiclePacket
+            || packet instanceof ServerboundClientTickEndPacket;
+        return playOnlyPacket && phase != ConnectionProtocol.PLAY;
     }
 
 
