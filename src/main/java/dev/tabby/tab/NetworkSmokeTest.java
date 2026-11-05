@@ -1255,7 +1255,7 @@ public final class NetworkSmokeTest {
     }
 
     private static void validateConnections(Minecraft client) {
-        validateMovementProtocolGuard();
+        validatePlayPacketProtocolGuard();
         TabContext serverA = context(0);
         TabContext serverB = context(1);
         require(isJoined(serverA), "Server A disconnected or lost its client world/player");
