@@ -25,6 +25,7 @@ import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket;
+import net.minecraft.network.protocol.game.ServerboundClientTickEndPacket;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.network.PacketListener;
@@ -1210,7 +1211,7 @@ public final class NetworkSmokeTest {
         );
     }
 
-    private static void validateMovementProtocolGuard() {
+    private static void validatePlayPacketProtocolGuard() {
         Packet<?> playerMovement = new ServerboundMovePlayerPacket.Pos(
             0.0,
             64.0,
@@ -1224,24 +1225,33 @@ public final class NetworkSmokeTest {
             0.0F,
             true
         );
+        Packet<?> clientTickEnd = ServerboundClientTickEndPacket.INSTANCE;
 
         require(
-            TabManager.shouldSuppressOutOfPhaseMovement(playerMovement, ConnectionProtocol.CONFIGURATION),
+            TabManager.shouldSuppressOutOfPhasePlayPacket(playerMovement, ConnectionProtocol.CONFIGURATION),
             "PLAY-only player movement was not suppressed during CONFIGURATION"
         );
         require(
-            TabManager.shouldSuppressOutOfPhaseMovement(vehicleMovement, ConnectionProtocol.CONFIGURATION),
+            TabManager.shouldSuppressOutOfPhasePlayPacket(vehicleMovement, ConnectionProtocol.CONFIGURATION),
             "PLAY-only vehicle movement was not suppressed during CONFIGURATION"
         );
         require(
-            !TabManager.shouldSuppressOutOfPhaseMovement(playerMovement, ConnectionProtocol.PLAY),
+            !TabManager.shouldSuppressOutOfPhasePlayPacket(playerMovement, ConnectionProtocol.PLAY),
             "Valid PLAY-phase player movement was incorrectly suppressed"
         );
         require(
-            !TabManager.shouldSuppressOutOfPhaseMovement(vehicleMovement, ConnectionProtocol.PLAY),
+            !TabManager.shouldSuppressOutOfPhasePlayPacket(vehicleMovement, ConnectionProtocol.PLAY),
             "Valid PLAY-phase vehicle movement was incorrectly suppressed"
         );
-        LOGGER.info("Network smoke test: PLAY-only movement is gated by the live protocol phase");
+        require(
+            TabManager.shouldSuppressOutOfPhasePlayPacket(clientTickEnd, ConnectionProtocol.CONFIGURATION),
+            "PLAY-only client tick-end packet was not suppressed during CONFIGURATION"
+        );
+        require(
+            !TabManager.shouldSuppressOutOfPhasePlayPacket(clientTickEnd, ConnectionProtocol.PLAY),
+            "Valid PLAY-phase client tick-end packet was incorrectly suppressed"
+        );
+        LOGGER.info("Network smoke test: PLAY-only packets are gated by the live protocol phase");
     }
 
     private static void validateConnections(Minecraft client) {
