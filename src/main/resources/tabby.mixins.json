@@ -30,5 +30,6 @@
   ],
   "injectors": {
     "defaultRequire": 1
-  }
+  },
+  "plugin": "dev.tabby.mixin.TabbyMixinPlugin"
 }
