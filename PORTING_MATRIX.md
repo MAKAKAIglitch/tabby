@@ -1,54 +1,50 @@
 # Tabby platform and Minecraft version matrix
 
-This file tracks the per-loader/per-version ports. A branch existing does **not** mean that its port is complete or tested.
+A branch existing does **not** mean that its port is complete or tested. This file tracks only branches currently present in the repository.
 
-## Branch naming
+## Current branches
 
-- `fabric/<minecraft-version>`
-- `neoforge/<minecraft-version>`
+| Branch | Target | Java | Current state |
+|---|---|---:|---|
+| `main` | Fabric 1.21.4 | 21 | Existing baseline; keep as the stable reference |
+| `fabric/1.21.4` | Fabric 1.21.4 | 21 | Existing 1.21.4 line |
+| `fabric/1.21.1` | Fabric 1.21.1 | 21 | Build/API port has begun; final CI result not confirmed |
+| `fabric/1.21.11` | Fabric 1.21.11 | 21 | Loom, loader, metadata and version-aware Windows build updated; source build not confirmed |
+| `fabric/26.2` | Fabric 26.2 | 25 | Loom/Gradle/loader/API/Mod Menu metadata and Java 25 selector updated; source/API port not confirmed |
+| `fabric/26.3` | Fabric 26.3 | 25 | Loom/Gradle/loader/API/Mod Menu metadata and Java 25 selector updated; source/API port not confirmed |
+| `neoforge/1.21.1` | NeoForge 1.21.1 | 21 | Scaffold only; native NeoForge port not yet implemented |
+| `neoforge/1.21.11` | NeoForge 1.21.11 | 21 | Scaffold only; native NeoForge port not yet implemented |
 
-Each branch is independent and must build against the exact Minecraft and loader API for its target.
+NeoForge 26.2 and 26.3 branches are not present and have not been recreated.
 
-## Targets
+## Fabric toolchains
 
-| Minecraft | Fabric branch | NeoForge branch | Java | Notes |
-|---|---|---|---:|---|
-| 1.21.1 | `fabric/1.21.1` | `neoforge/1.21.1` | 21 | |
-| 1.21.2 | `fabric/1.21.2` | `neoforge/1.21.2` | 21 | NeoForge artifacts are beta-only |
-| 1.21.3 | `fabric/1.21.3` | `neoforge/1.21.3` | 21 | NeoForge artifacts are beta-only |
-| 1.21.4 | `fabric/1.21.4` | `neoforge/1.21.4` | 21 | Existing main baseline is Fabric 1.21.4 |
-| 1.21.5 | `fabric/1.21.5` | `neoforge/1.21.5` | 21 | |
-| 1.21.6 | `fabric/1.21.6` | `neoforge/1.21.6` | 21 | |
-| 1.21.7 | `fabric/1.21.7` | `neoforge/1.21.7` | 21 | |
-| 1.21.8 | `fabric/1.21.8` | `neoforge/1.21.8` | 21 | |
-| 1.21.9 | `fabric/1.21.9` | `neoforge/1.21.9` | 21 | |
-| 1.21.10 | `fabric/1.21.10` | `neoforge/1.21.10` | 21 | |
-| 1.21.11 | `fabric/1.21.11` | `neoforge/1.21.11` | 21 | |
-| 26.1 | `fabric/26.1` | `neoforge/26.1` | 25 | NeoForge line is beta-only |
-| 26.1.1 | `fabric/26.1.1` | `neoforge/26.1.1` | 25 | NeoForge line is beta-only |
-| 26.1.2 | `fabric/26.1.2` | `neoforge/26.1.2` | 25 | |
-| 26.2 | `fabric/26.2` | `neoforge/26.2` | 25 | |
-| 26.3 | `fabric/26.3` | `neoforge/26.3` | 25 | |
+| Minecraft | Fabric Loader | Fabric API | Loom | Gradle wrapper | Java |
+|---|---:|---:|---:|---:|---:|
+| 1.21.1 | 0.16.14 | 0.116.17+1.21.1 | 1.9.2 | 8.12.1 | 21 |
+| 1.21.11 | 0.20.1 | 0.141.4+1.21.11 | 1.14.10 | 8.12.1 | 21 |
+| 26.2 | 0.20.1 | 0.161.0+26.2 | 1.17.21 | 9.5.1 | 25 |
+| 26.3 | 0.20.1 | 0.165.2+26.3 | 1.17.21 | 9.6.1 | 25 |
 
-## Port status
+The 26.x branches use the non-remapping Loom plugin and official namespace access widener. Their build wrappers select Java 25 and use SHA-256-pinned Gradle distributions.
 
-- Branches were created from the current `main` baseline.
-- `fabric/1.21.1`: build metadata and compile CI are being adapted first. The result is pending; this is not yet a verified port.
-- All other `fabric/*` branches: branch scaffolds only; source/API compatibility has not yet been verified.
-- All `neoforge/*` branches: branch scaffolds only; the Fabric entrypoint, Fabric API integrations, access widener and build setup still need a NeoForge platform implementation.
-- `main` remains the existing Fabric 1.21.4 line until the other ports are independently built and tested.
+## Port acceptance checks
 
-## Required acceptance checks per branch
+A branch is not release-ready until all applicable checks pass on that exact branch:
 
-1. Exact Java toolchain and Gradle/loader plugin for that target.
-2. Successful clean Gradle build and remapped/production JAR.
-3. Correct loader metadata and Minecraft version constraints.
-4. Client launch smoke test.
-5. Tab creation/switch/close, two remote connections, integrated-world lifecycle and reconnect tests.
-6. Optional integration tests only for mods available on that loader/version.
-7. No claims of support until CI passes for that exact branch.
+1. Clean Gradle build using the target Java and loader toolchain.
+2. Correct loader metadata and exact Minecraft version constraint.
+3. Production JAR exists, is non-empty, and contains the expected classes/resources.
+4. Client starts and initializes Tabby without a crash.
+5. Tab creation, switching, closing and cleanup work.
+6. Two remote connections remain isolated while switching tabs.
+7. Integrated-world lifecycle and disconnect handling are verified.
+8. Optional-mod integrations are tested only against builds available for that exact Minecraft version and loader.
 
-## Important toolchain split
+## Current limitations
 
-- Minecraft 1.21.x targets use Java 21.
-- Minecraft 26.x targets use Java 25. Fabric's 26.1+ Loom plugin ID and NeoForge ModDevGradle setup differ from the 1.21.x build.
+- The source/API migration for Fabric 26.2 and 26.3 is not yet verified. The 1.21.4 source baseline may contain incompatible Minecraft and Fabric API calls.
+- Fabric 1.21.11 build configuration is updated, but its final clean build and client launch have not been confirmed.
+- NeoForge branches still contain Fabric-specific code and metadata. A real NeoForge port needs ModDevGradle, a native `@Mod` entrypoint, NeoForge event/config integration, and access-transformer/mixin migration.
+- The GitHub connector currently reports no CI status checks for the latest port commits. No successful build is being claimed for those commits.
+- `main` remains the Fabric 1.21.4 reference branch and should not be replaced by an unverified port.
