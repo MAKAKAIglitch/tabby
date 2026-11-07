@@ -11,7 +11,7 @@ import net.minecraft.network.Connection;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
-import net.minecraft.server.level.ParticleStatus;
+import net.minecraft.client.ParticleStatus;
 import java.lang.reflect.Proxy;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
