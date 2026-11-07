@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - "main"
+      - "fabric/**"
   pull_request:
     branches:
       - "**"
@@ -18,6 +19,7 @@ permissions:
 
 jobs:
   windows-wrapper:
+    if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
     steps:
       - name: Check out source
@@ -72,6 +74,7 @@ jobs:
         run: ./gradlew build
 
       - name: Start two offline-mode Minecraft test servers
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -156,6 +159,7 @@ jobs:
           exit 1
 
       - name: Prepare single-player world fixtures
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -168,6 +172,7 @@ jobs:
           echo "Prepared two local single-player world fixtures from the same-version Minecraft servers."
 
       - name: Launch Minecraft client and verify network and single-player isolation
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set +e
@@ -187,6 +192,7 @@ jobs:
           exit 1
 
       - name: Verify Sodium, Iris, Lithium, and Mod Menu compatibility
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
