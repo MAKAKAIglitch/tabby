@@ -6,7 +6,7 @@
 
 - Minecraft: `1.21.11`
 - Java: `21`
-- Fabric Loader: `0.19.3`
+- Fabric Loader: `0.20.1`
 - Fabric API: `0.141.4+1.21.11`
 - Fabric Loom: `1.14.10`
 
