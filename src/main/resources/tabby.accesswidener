@@ -1,4 +1,4 @@
-accessWidener v2 named
+accessWidener v2 official
 mutable field net/minecraft/client/Minecraft levelRenderer Lnet/minecraft/client/renderer/LevelRenderer;
 mutable field net/minecraft/client/Minecraft particleEngine Lnet/minecraft/client/particle/ParticleEngine;
 mutable field net/minecraft/client/Minecraft gui Lnet/minecraft/client/gui/Gui;
