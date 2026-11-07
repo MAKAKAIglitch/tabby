@@ -1,11 +1,10 @@
 plugins {
-    id "fabric-loom" version "${loom_version}"
+    id "net.fabricmc.fabric-loom" version "${loom_version}"
 }
 
 version = project.mod_version
 group = project.maven_group
 
-// Capture scalar values once so task action closures remain configuration-cache compatible.
 def tabbyVersion = project.version.toString()
 def tabbyArchiveName = project.archives_base_name.toString()
 
@@ -26,35 +25,30 @@ repositories {
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings loom.officialMojangMappings()
-
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-    modCompileOnly "com.terraformersmc:modmenu:13.0.2"
+    modCompileOnly "com.terraformersmc:modmenu:17.0.1"
 }
 
 processResources {
     inputs.property "version", tabbyVersion
-
     filesMatching("fabric.mod.json") {
         expand "version": tabbyVersion
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.release = 21
+    options.release = 25
     options.encoding = "UTF-8"
 }
 
 java {
-    // The wrapper selects Java 21 before Gradle starts; also pin compilation to the
-    // same toolchain when a developer invokes a system Gradle installation directly.
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
     withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 jar {
@@ -63,18 +57,16 @@ jar {
     }
 }
 
-// Export one predictable, remapped JAR for local installation/testing.
+// Minecraft 26.x is unobfuscated: the ordinary JAR is the distributable artifact.
 tasks.register("exportModJar", Copy) {
     group = "build"
-    description = "Copies the remapped mod JAR to dist/Tabby-1.21.4.jar."
-    dependsOn(tasks.named("remapJar"))
-    from(tasks.named("remapJar").flatMap { it.archiveFile })
+    description = "Copies the compiled mod JAR to dist/Tabby-${project.minecraft_version}.jar."
+    dependsOn(tasks.named("jar"))
+    from(tasks.named("jar").flatMap { it.archiveFile })
     into(layout.projectDirectory.dir("dist"))
-    rename { "Tabby-1.21.4.jar" }
+    rename { "Tabby-${project.minecraft_version}.jar" }
 }
 
-// Open the compiled mod directory after a successful local Windows build.
-// Set TABBY_OPEN_MOD_FOLDER=0 to disable it; CI and non-Windows builds never open a GUI.
 def tabbyBuildOutputPath = layout.buildDirectory.dir("libs").get().asFile.absolutePath
 def tabbyOsName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT)
 def tabbyCiValue = (System.getenv("CI") ?: "").trim()
