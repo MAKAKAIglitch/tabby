@@ -1,102 +1,19 @@
 # Tabby
 
-**Loader: Fabric (Minecraft Java Edition 1.21.4).** Tabby is a client-side Fabric mod, not a Forge or NeoForge mod. Install the exported `Tabby-1.21.4.jar` into a Minecraft profile that uses Fabric Loader 0.16.14+ and Fabric API for 1.21.4.
+**Loader: Fabric (Minecraft Java Edition 26.3).** This branch targets Minecraft 26.3 only. It is a client-side mod and is not a Forge or NeoForge build.
 
-## Current status
+## Build configuration
 
-**Stage 0 accepted.** The minimal client builds and loads in a Minecraft 1.21.4 startup smoke test.
+- Minecraft: `26.3`
+- Java: `25`
+- Fabric Loader: `0.19.5`
+- Fabric API: `0.165.2+26.3`
+- Fabric Loom: `1.17.21`
 
-**Stages 1–3 verified by CI.** One client connected to two local Minecraft 1.21.4 servers, verified separate world/player/connection objects, and kept both connections alive for at least 2400 ticks while switching tabs. CI exercises tab clicks and shortcuts, duplicate-connection protection, closing a live tab, and returning to a title screen after the final tab closes. Fabric API 0.119.4 does not support initializing a second particle factory registry, so the prototype shares the particle engine and suppresses particle mutations from inactive tabs. A pre-tick guard restores a missing active world while its network connection is live. An optional mixin blocks Meteor's `TickEvent.Pre`/`TickEvent.Post` dispatch while no active world is loaded. This protects multiple world-dependent modules (including the reported AutoBreed and Nametags handlers) without a compile-time Meteor dependency; validation inside the user's Meteor modpack is still required. Full chat/inventory/entity isolation still needs deeper tests. Voxy was not included in that compatibility matrix.
+The Windows launcher reads the Minecraft version from `gradle.properties` and exports `dist/Tabby-26.3.jar`. The Gradle wrapper selects a matching Java runtime and verifies downloaded Temurin archives using SHA-256.
 
-**Stage 4 verified by CI (2026-10-30).** [Workflow run 41019826362 passed](https://github.com/MAKAKAIglitch/tabby/actions/runs/41019826362). The test pressed the real Disconnect button in `PauseScreen` on the active network tab while an integrated single-player world remained open in a background tab. The disconnect call returned, the selected network connection closed, and the hidden IntegratedServer stayed alive. Closing the last single-player tab now joins the IntegratedServer thread before Minecraft shuts down shared executors; CI asserts `isShutdown()` before exit. The full run had no `RejectedExecutionException`, rejected chunk scheduling, or failed chunk-save errors. The same run also passed Java 21 selection checks, Linux and Windows builds, the dual-server isolation test, and separate Sodium, Iris, Lithium, and Mod Menu compatibility smoke tests. CI also verifies key release, the configured background-tab limit (default 3), duplicate-connection protection, and clean tab cleanup.
+## Porting status
 
-**Stage 5 verified by CI.** `config/tabby.json` stores the background-tab limit, Ctrl shortcut key codes, menu visibility, bar display mode, optional address-only server restoration, bar size (75–125%), five color presets, opacity (20–100%), and a toggle for the RAM/chunks/entities HUD plaque. With Mod Menu installed, **Mods → Tabby → Settings** opens the native Minecraft settings screen for these options. The diagnostic HUD plaque is hidden by default; enable it to show the estimated RAM, loaded chunks, and tracked entities. The strip supports right-click pin/unpin and drag reordering, and labels show cached ping when available. Saved server addresses reconnect when restoration is enabled. CI checks config defaults, tab order/pinning, and deduplicated address persistence.
+The branch-specific build configuration and metadata have been updated. **The Minecraft source/API port and a successful CI build are not yet confirmed.** Treat this branch as work in progress until the GitHub Actions build and client startup test pass.
 
-**Stage 6 and the performance update verified by CI (2026-10-29).** [Workflow run 40838779781](https://github.com/MAKAKAIglitch/tabby/actions/runs/40838779781) passed the source generation/build, dual-server and single-player integration suite, and four isolated compatibility tests after the render guard and RAM estimate were added. The earlier [run 40836537553](https://github.com/MAKAKAIglitch/tabby/actions/runs/40836537553) verified that the tab strip is visible on `TitleScreen` and `PauseScreen`, hidden on other screens, and that the actual Mod Menu entrypoint initializes all settings controls. The test downloaded SHA-512-pinned Fabric builds for Minecraft 1.21.4 and verified that each optional mod could load a real local server world, keep separate tab renderers, and survive six context switches. Results:
-
-| Configuration | Result |
-|---|---|
-| Fabric API baseline | Passed — dual-server and single-player lifecycle suite |
-| Sodium 0.6.13 | Passed — client launch, world load, six context switches |
-| Iris 1.8.8 + Sodium 0.6.13 | Passed — client launch, world load, six context switches |
-| Lithium 0.15.3 | Passed — client launch, world load, six context switches |
-| Mod Menu 13.0.2 | Passed — settings screen and controls initialized, client launch, world load, six context switches |
-
-Inactive tab renderers are explicitly blocked at `LevelRenderer.renderLevel`; the two-server CI test verifies the active renderer is allowed and the inactive renderer is rejected. Switching back to a world no longer calls `LevelRenderer.setLevel()` when that renderer already owns the same world, avoiding a full chunk-render-state rebuild on every switch. The active tab shows `~NNMB` in the strip and `RAM ~NN MB` plus loaded chunks/tracked entities in the in-game HUD. This RAM figure is a cached **estimate** based on loaded chunks and tracked entities, not a precise per-object JVM heap measurement. These are **headless smoke tests**, not a claim of full gameplay compatibility. CI uses software OpenGL (llvmpipe); hardware-GPU rendering, enabled shaderpacks, longer sessions, and the four mods loaded together were not tested. Full content-level isolation of chat, inventory, and entities also remains a follow-up.
-
-
-**Voxy memory-pressure mitigation (pending real-mod validation).** The supplied client log shows Voxy allocating a 4095 MiB geometry buffer while Tabby changes/disconnects a tab. Tabby now suspends Voxy's per-`LevelRenderer` render system whenever a tab becomes inactive and recreates it when that tab is selected; the optional Voxy hook is reflection-based and adds no hard dependency. Real Voxy/Simple Voice Chat testing with the affected modpack and GPU remains a separate validation target.
-
-**Simple Voice Chat tab isolation.** SVC has one client-global voice session, microphone thread and audio-channel manager. Tabby now suppresses SVC join/disconnect callbacks while packet work belongs to a hidden tab, and rebinds the SVC client to the selected tab's server when tabs change. Only the active tab owns the voice session; switching tabs requests fresh voice-chat authentication from the selected server. This optional integration has no compile-time SVC dependency and is tested with the pinned Fabric 1.21.4 SVC release in CI.
-**Protocol-phase safety.** Tabby checks the live listener phase before sending PLAY-only player/vehicle movement packets. During a `PLAY → CONFIGURATION` transition, stale movement is suppressed before the Netty encoder, and a warning identifies the connection phase/listener instead of triggering an unknown-packet encoder failure. The CI network smoke test covers both allowed PLAY and blocked CONFIGURATION decisions.
-
-**Performance hot paths (verified 2026-11-03).** Ordered tab/context lists are immutable cached snapshots rebuilt only after a tab is created, removed or reordered. The background connection tick, TabManager and tab strip reuse these snapshots instead of allocating defensive copies on every tick/frame. TabMemoryUsage is client-thread confined, removes stale cache entries in linear time, and refreshes its chunk/entity estimate every 40 ticks only while the optional HUD plaque is enabled. The connection tick itself remains every game tick to preserve keep-alives.
-
-**Background damage alerts (verified 2026-11-03).** When the local player belonging to a hidden tab receives a damage event, Tabby posts a chat message with that tab's title and plays a UI notification sound. Events are matched by packet listener, connection and local-player entity ID; rapid hits are coalesced. The default-on feature can be disabled in Mod Menu settings. Minecraft's damage-event packet has no numerical damage amount, so the alert reports the hit event/count rather than guessing lost HP.
-
-**Architecture boundaries.** Tab identity/order, tab lifecycle, connection policy, packet execution scopes, network ownership links, and renderer compatibility are separated into dedicated package-level components. The stable public entry point for mixins and UI remains `TabManager`. See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership rules and the client-thread invariants.
-
-## Requirements
-
-- Minecraft Java Edition 1.21.4
-- Java 21
-- Fabric Loader 0.16.x
-- Fabric API for Minecraft 1.21.4
-
-The project uses Fabric Loom and Mojang's official mappings. The Mod Menu API is compile-only: Mod Menu is optional at runtime.
-
-## Build and run
-
-### Automatic Java selection
-
-The wrapper selects Java 21 automatically before starting Gradle, and the Gradle Java toolchain pins compilation to Java 21 as a second guard. It checks `TABBY_JAVA_HOME`, `JAVA_HOME`, `JDK_HOME`, the active `PATH` Java, and common JDK installation locations. If no Java 21 installation is found, it downloads the latest Eclipse Temurin JDK 21 from Adoptium into the Gradle user cache and verifies the archive's SHA-256 checksum before using it. This also avoids accidentally launching this Gradle 8.12.1 build on an unsupported newer JVM.
-
-Set `TABBY_AUTO_JAVA=0` to disable Tabby's selection/bootstrap and use your normal Java environment. The build targets Java 21 in all cases.
-
-### Build speed
-
-Gradle reuses its daemon, configuration cache, and local build cache for repeat builds. Independent tasks are scheduled in parallel, and up to four configuration-cache entries are retained so source generation, build, and client launch can reuse configuration. The Gradle daemon is capped at 2 GB with a 768 MB metaspace limit because `runClient` starts a separate Minecraft JVM; this lowers the risk of the operating system killing Gradle on memory-constrained PCs. Parallel configuration-cache serialization is left disabled to avoid a needless memory spike. Normal CI builds skip source generation because it is not required to compile the mod. Run `./gradlew genSources` manually only when inspecting Minecraft internals. Keep using the wrapper commands below so automatic Java selection and the project-specific Gradle settings are applied.
-
-On Linux/macOS:
-
-```sh
-./gradlew build
-./gradlew runClient
-```
-
-### Build locally on Windows
-
-**Recommended: double-click `build-tabby.bat` in the project folder.** This builds the Fabric version for Minecraft 1.21.4 (not Forge/NeoForge). It automatically selects an installed Java 21 JDK (or downloads Eclipse Temurin 21 after verifying its SHA-256 checksum), runs Gradle, and checks that a non-empty remapped mod JAR really exists. The final file is copied to:
-
-```text
-dist\\Tabby-1.21.4.jar
-```
-
-The launcher opens the `dist` folder only after verifying the JAR. The console stays open after both success and failure, and the full build output is saved to `build-tabby.log` for troubleshooting. CI skips the interactive pause. To suppress the pause when launching from your own terminal, set `TABBY_NO_PAUSE=1`.
-
-To build from a terminal instead, use `./gradlew build exportModJar` on Linux/macOS or ` .\\gradlew.bat build exportModJar` on Windows. These commands also leave the installable JAR in `dist/`. Use `gradlew.bat runClient` when you want to launch a development client rather than just create the mod.
-
-The first build downloads the Gradle distribution, required dependencies, and (only if needed) Java 21. Later builds reuse the Gradle daemon, configuration cache and task-output cache. The normal Gradle outputs remain under `build/libs/`; the stable installable copy is `dist/Tabby-1.21.4.jar`. Generated game files are kept under the ignored `run/` directory.
-
-Use **Ctrl+T** to create a tab, **Ctrl+W** to close the active tab, **Ctrl+Tab** to cycle tabs, and **Ctrl+1** through **Ctrl+9** to select a tab by position. The strip is visible only on the **main title screen** and the **pause menu**; it never renders over the in-game HUD or other screens. With Mod Menu installed, open **Mods → Tabby → Settings** to change the background-tab limit, server-address restoration, Ctrl shortcut keys, tab-bar size/color/opacity, and the diagnostic HUD plaque.
-
-## Development workflow
-
-All project changes are committed directly to `main`. See [TASK.md](TASK.md) for the implementation plan and progress.
-
-A GitHub Actions workflow generates Minecraft sources, builds the mod, starts two verified Minecraft 1.21.4 offline-mode servers, and runs an automated client test that switches between both live connections.
-
-
-## Interface, localization and memory settings
-
-The Mod Menu screen is organized into **General**, **Appearance** and **Performance** pages. Option labels and Tabby notifications are localized in English and Russian, following the Minecraft language setting. Tab names show the server address by default; choose **Server name** on the Appearance page to use the server-provided name instead. The same page controls bar visibility (always, hover/Alt, or hidden), ping and RAM labels, scale, opacity, and seven color presets. General settings include menu visibility, address restoration, damage alerts, and editable shortcuts. Performance settings control the background-tab limit and optional diagnostic HUD.
-
-New configurations default to three background tabs instead of four. A lower limit reduces the number of simultaneously retained client worlds and their chunk/render resources. Existing user-selected limits are preserved. Tabby deliberately does not unload or replace hidden worlds: doing so could lose the live connection/world state that makes tab switching work. The RAM figure remains an estimate, not per-object JVM heap accounting. Memory-cache cleanup also reuses the tab registry's membership index instead of allocating a temporary set on each refresh.
-
-
-Background tab feedback: when a hidden tab's local player takes damage, that tab briefly flashes red in the tab strip. Hidden tabs also show compact health and hunger values by default. Both features can be independently disabled on the Appearance page. Values are read from each tab's own LocalPlayer; active-tab HUD and world state are not modified.
-
-
-**Unread chat and mentions.** Each background tab tracks chat lines added while its context is installed. A tab badge shows unread message count and a separate local-player mention count; selecting the tab clears its unread counters. Enabled by default, independently configurable.
-**Automatic reconnect.** Unexpected disconnects from previously joined remote servers schedule up to five reconnect attempts, five seconds apart, with a 20-second per-attempt timeout. Manual disconnects, removed tabs and integrated single-player sessions are excluded. Reconnect state belongs to the individual tab.
-**Background failure isolation.** Runtime exceptions thrown while processing a background tab's scoped packet/tick task are logged with their stack trace, and that tab is disconnected on the next client maintenance tick. The active tab is restored before maintenance continues. Exceptions from the active tab and JVM-level Error conditions retain vanilla behavior; this is targeted containment, not a guarantee that every mod crash can be prevented.
+The 1.21.4 implementation is the source baseline. Version-specific changes to Minecraft rendering, networking, mixins, Fabric API, and optional-mod compatibility must be checked on this target before release.
