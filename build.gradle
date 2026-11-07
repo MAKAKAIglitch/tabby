@@ -66,11 +66,11 @@ jar {
 // Export one predictable, remapped JAR for local installation/testing.
 tasks.register("exportModJar", Copy) {
     group = "build"
-    description = "Copies the remapped mod JAR to dist/Tabby-1.21.4.jar."
+    description = "Copies the remapped mod JAR to dist/Tabby-${project.minecraft_version}.jar."
     dependsOn(tasks.named("remapJar"))
     from(tasks.named("remapJar").flatMap { it.archiveFile })
     into(layout.projectDirectory.dir("dist"))
-    rename { "Tabby-1.21.4.jar" }
+    rename { "Tabby-${project.minecraft_version}.jar" }
 }
 
 // Open the compiled mod directory after a successful local Windows build.
