@@ -88,18 +88,18 @@ APP_BASE_NAME=${0##*/}
 # Discard cd standard output in case $CDPATH is set (https://github.com/gradle/gradle/issues/25036)
 APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exit
 
-# Tabby requires Java 21. Prefer an installed JDK 21, or bootstrap a checksum-verified Temurin 21.
+# Tabby requires Java 25. Prefer an installed JDK 21, or bootstrap a checksum-verified Temurin 21.
 if [ "${TABBY_AUTO_JAVA:-1}" != "0" ]; then
     if [ ! -f "$APP_HOME/gradle/auto-java.sh" ]; then
         echo "ERROR: Tabby Java selector is missing: $APP_HOME/gradle/auto-java.sh" >&2
         exit 1
     fi
     JAVA_HOME=$("$APP_HOME/gradle/auto-java.sh") || {
-        echo "ERROR: Tabby could not locate or install Java 21." >&2
+        echo "ERROR: Tabby could not locate or install Java 25." >&2
         exit 1
     }
     export JAVA_HOME
-    printf '%s\n' "Tabby: using Java 21 from $JAVA_HOME" >&2
+    printf '%s\n' "Tabby: using Java 25 from $JAVA_HOME" >&2
 fi
 
 # Use the maximum available, or set MAX_FD != -1 to use that value.
