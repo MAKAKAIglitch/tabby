@@ -4,7 +4,11 @@ $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $wrapper = Join-Path $projectRoot 'gradlew.bat'
 $propertiesPath = Join-Path $projectRoot 'gradle.properties'
 $versionLine = Get-Content -LiteralPath $propertiesPath | Where-Object { $_ -match '^minecraft_version=' } | Select-Object -First 1
-if ($null -eq $versionLine -or $versionLine -notmatch '^minecraft_version=(.+)
+if ($null -eq $versionLine -or $versionLine -notmatch '^minecraft_version=(.+)$') {
+    throw 'minecraft_version was not found in gradle.properties.'
+}
+$minecraftVersion = $Matches[1].Trim()
+$outputJar = Join-Path $projectRoot ("dist\Tabby-{0}.jar" -f $minecraftVersion)
 $logPath = Join-Path $projectRoot 'build-tabby.log'
 
 if (-not (Test-Path -LiteralPath $wrapper -PathType Leaf)) {
@@ -23,7 +27,7 @@ try {
     Write-Host ' Tabby local build'
     Write-Host '============================================================'
     Write-Host "Project : $projectRoot"
-    Write-Host 'Target  : Fabric Loader - Minecraft Java Edition $minecraftVersion (not Forge/NeoForge)'
+    Write-Host "Target  : Fabric Loader - Minecraft Java Edition $minecraftVersion (not Forge/NeoForge)"
     Write-Host 'Java    : automatically select an installed Java 21 JDK'
     Write-Host "Log     : $logPath"
     Write-Host ''
@@ -49,7 +53,7 @@ try {
 
     Write-Host ''
     Write-Host 'BUILD SUCCESSFUL'
-    Write-Host 'Loader  : Fabric (Minecraft $minecraftVersion)'
+    Write-Host "Loader  : Fabric (Minecraft $minecraftVersion)"
     Write-Host "JAR     : $($jarInfo.FullName)"
     Write-Host ('Size    : {0:N0} bytes' -f $jarInfo.Length)
     Write-Host "Log     : $logPath"
