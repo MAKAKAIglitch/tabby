@@ -79,8 +79,8 @@ $relativePatterns = @(
     'Java\jdk-25*',
     'Amazon Corretto\jdk-25*',
     'Amazon Corretto\jdk25*',
-    'Zulu\zulu-21*',
-    'BellSoft\LibericaJDK-21*',
+    'Zulu\zulu-25*',
+    'BellSoft\LibericaJDK-25*',
     'Programs\Eclipse Adoptium\jdk-25*',
     'Programs\Microsoft\jdk-25*',
     'Programs\Amazon Corretto\jdk-25*'
@@ -98,7 +98,7 @@ $gradleHome = $env:GRADLE_USER_HOME
 if ([string]::IsNullOrWhiteSpace($gradleHome)) {
     $gradleHome = Join-Path $HOME '.gradle'
 }
-$jdkHome = Join-Path $gradleHome 'jdks\tabby-temurin-21'
+$jdkHome = Join-Path $gradleHome 'jdks\tabby-temurin-25'
 $candidates.Add($jdkHome)
 
 $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
@@ -117,18 +117,18 @@ switch -Regex ($architecture) {
     '^(AMD64|x64)$' { $adoptiumArchitecture = 'x64'; break }
     '^(ARM64|AARCH64)$' { $adoptiumArchitecture = 'aarch64'; break }
     default {
-        [Console]::Error.WriteLine("Tabby: no automatic Temurin 21 bootstrap mapping for Windows architecture '$architecture'.")
+        [Console]::Error.WriteLine("Tabby: no automatic Temurin 25 bootstrap mapping for Windows architecture '$architecture'.")
         exit 1
     }
 }
 
 $parentDirectory = Join-Path $gradleHome 'jdks'
 New-Item -ItemType Directory -Path $parentDirectory -Force | Out-Null
-$tempDirectory = Join-Path $parentDirectory ('.tabby-temurin-21-' + [Guid]::NewGuid().ToString('N'))
+$tempDirectory = Join-Path $parentDirectory ('.tabby-temurin-25-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempDirectory -Force | Out-Null
 
 try {
-    [Console]::Error.WriteLine('Tabby: no installed Java 25 found; downloading a SHA-256-verified Eclipse Temurin JDK 21 into Gradle''s cache.')
+    [Console]::Error.WriteLine('Tabby: no installed Java 25 found; downloading a SHA-256-verified Eclipse Temurin JDK 25 into Gradle''s cache.')
     $api = "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=$adoptiumArchitecture&heap_size=normal&image_type=jdk&jvm_impl=hotspot&os=windows&vendor=eclipse"
     $assets = @(Invoke-RestMethod -Uri $api -Method Get -TimeoutSec 45)
     if ($assets.Count -lt 1 -or -not $assets[0].binary.package.link -or -not $assets[0].binary.package.checksum) {
@@ -136,7 +136,7 @@ try {
     }
 
     $package = $assets[0].binary.package
-    $archive = Join-Path $tempDirectory 'temurin21.zip'
+    $archive = Join-Path $tempDirectory 'temurin25.zip'
     $extractDirectory = Join-Path $tempDirectory 'extracted'
     New-Item -ItemType Directory -Path $extractDirectory -Force | Out-Null
     Invoke-WebRequest -Uri $package.link -OutFile $archive -TimeoutSec 300 -UseBasicParsing
