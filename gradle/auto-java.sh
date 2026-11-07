@@ -1,5 +1,5 @@
 #!/bin/sh
-# Select an installed Java 25 runtime, or bootstrap a verified Eclipse Temurin JDK 21.
+# Select an installed Java 25 runtime, or bootstrap a verified Eclipse Temurin JDK 25.
 # The script prints only JAVA_HOME to stdout; diagnostics are written to stderr.
 set -eu
 
@@ -10,7 +10,7 @@ is_java25_home() {
     [ -x "$candidate/bin/javac" ] || return 1
 
     version_output=$("$candidate/bin/java" -version 2>&1 || true)
-    printf '%s\n' "$version_output" | grep -Eq 'version "25([.|")|openjdk 25([.]|[[:space:]])'
+    printf '%s\n' "$version_output" | grep -Eq 'version "25([.]|\")|openjdk 25([.]|[[:space:]])'
 }
 
 for candidate in "${TABBY_JAVA_HOME:-}" "${JAVA_HOME:-}" "${JDK_HOME:-}"; do
@@ -48,7 +48,7 @@ if [ -n "$java_command" ]; then
 fi
 
 gradle_home=${GRADLE_USER_HOME:-"$HOME/.gradle"}
-cached_jdk="$gradle_home/jdks/tabby-temurin-21"
+cached_jdk="$gradle_home/jdks/tabby-temurin-25"
 if is_java25_home "$cached_jdk"; then
     printf '%s\n' "$cached_jdk"
     exit 0
@@ -63,7 +63,7 @@ for candidate in \
     /usr/java/* \
     /opt/jdk* \
     /opt/java/* \
-    /usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
+    /usr/local/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home \
     /Library/Java/JavaVirtualMachines/*/Contents/Home; do
     if is_java25_home "$candidate"; then
         printf '%s\n' "${candidate%/}"
@@ -84,7 +84,7 @@ case "$(uname -m)" in
     x86_64|amd64) architecture=x64 ;;
     aarch64|arm64) architecture=aarch64 ;;
     *)
-        printf '%s\n' "Tabby: no automatic Temurin 21 bootstrap mapping for architecture $(uname -m)." >&2
+        printf '%s\n' "Tabby: no automatic Temurin 25 bootstrap mapping for architecture $(uname -m)." >&2
         exit 1
         ;;
 esac
@@ -96,13 +96,13 @@ fi
 
 jdk_parent="$gradle_home/jdks"
 mkdir -p "$jdk_parent"
-tmp_dir=$(mktemp -d "$jdk_parent/.tabby-temurin-21.XXXXXX")
+tmp_dir=$(mktemp -d "$jdk_parent/.tabby-temurin-25.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
 
 api_url="https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=$architecture&heap_size=normal&image_type=jdk&jvm_impl=hotspot&os=$os&vendor=eclipse"
-printf '%s\n' "Tabby: no installed Java 25 found; downloading a SHA-256-verified Eclipse Temurin JDK 21 into Gradle's cache." >&2
+printf '%s\n' "Tabby: no installed Java 25 found; downloading a SHA-256-verified Eclipse Temurin JDK 25 into Gradle's cache." >&2
 metadata=$(curl -fsSL --retry 3 "$api_url") || {
-    printf '%s\n' "Tabby: failed to retrieve Temurin 21 release metadata from Adoptium." >&2
+    printf '%s\n' "Tabby: failed to retrieve Temurin 25 release metadata from Adoptium." >&2
     exit 1
 }
 
@@ -143,7 +143,7 @@ esac
     exit 1
 }
 
-archive="$tmp_dir/temurin21.tar.gz"
+archive="$tmp_dir/temurin25.tar.gz"
 extract_dir="$tmp_dir/extracted"
 mkdir -p "$extract_dir"
 curl -fL --retry 3 "$download_url" -o "$archive"
