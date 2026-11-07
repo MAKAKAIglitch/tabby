@@ -2,7 +2,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-function Test-Java21Home([string] $HomePath) {
+function Test-Java25Home([string] $HomePath) {
     if ([string]::IsNullOrWhiteSpace($HomePath)) { return $false }
     $candidate = $HomePath.Trim().Trim('"')
     $javaExe = Join-Path $candidate 'bin\java.exe'
@@ -28,7 +28,7 @@ function Test-Java21Home([string] $HomePath) {
         $process.WaitForExit()
         if ($process.ExitCode -ne 0) { return $false }
         $versionText = $stdout + "`n" + $stderr
-        return ($versionText -match '(?m)version\s+"21(?:\.|")|openjdk\s+21(?:\.|\s)')
+        return ($versionText -match '(?m)version\s+"25(?:\.|")|openjdk\s+25(?:\.|\s)')
     }
     finally {
         $process.Dispose()
@@ -74,16 +74,16 @@ $roots = @(
     $env:LOCALAPPDATA
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 $relativePatterns = @(
-    'Eclipse Adoptium\jdk-21*',
-    'Microsoft\jdk-21*',
-    'Java\jdk-21*',
-    'Amazon Corretto\jdk-21*',
-    'Amazon Corretto\jdk21*',
+    'Eclipse Adoptium\jdk-25*',
+    'Microsoft\jdk-25*',
+    'Java\jdk-25*',
+    'Amazon Corretto\jdk-25*',
+    'Amazon Corretto\jdk25*',
     'Zulu\zulu-21*',
     'BellSoft\LibericaJDK-21*',
-    'Programs\Eclipse Adoptium\jdk-21*',
-    'Programs\Microsoft\jdk-21*',
-    'Programs\Amazon Corretto\jdk-21*'
+    'Programs\Eclipse Adoptium\jdk-25*',
+    'Programs\Microsoft\jdk-25*',
+    'Programs\Amazon Corretto\jdk-25*'
 )
 foreach ($root in $roots) {
     foreach ($pattern in $relativePatterns) {
@@ -106,7 +106,7 @@ foreach ($candidate in $candidates) {
     if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
     $normalized = $candidate.Trim().Trim('"')
     if (-not $seen.Add($normalized)) { continue }
-    if (Test-Java21Home $normalized) {
+    if (Test-Java25Home $normalized) {
         [Console]::Out.WriteLine((Resolve-Path -LiteralPath $normalized).Path)
         exit 0
     }
@@ -128,8 +128,8 @@ $tempDirectory = Join-Path $parentDirectory ('.tabby-temurin-21-' + [Guid]::NewG
 New-Item -ItemType Directory -Path $tempDirectory -Force | Out-Null
 
 try {
-    [Console]::Error.WriteLine('Tabby: no installed Java 21 found; downloading a SHA-256-verified Eclipse Temurin JDK 21 into Gradle''s cache.')
-    $api = "https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=$adoptiumArchitecture&heap_size=normal&image_type=jdk&jvm_impl=hotspot&os=windows&vendor=eclipse"
+    [Console]::Error.WriteLine('Tabby: no installed Java 25 found; downloading a SHA-256-verified Eclipse Temurin JDK 21 into Gradle''s cache.')
+    $api = "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=$adoptiumArchitecture&heap_size=normal&image_type=jdk&jvm_impl=hotspot&os=windows&vendor=eclipse"
     $assets = @(Invoke-RestMethod -Uri $api -Method Get -TimeoutSec 45)
     if ($assets.Count -lt 1 -or -not $assets[0].binary.package.link -or -not $assets[0].binary.package.checksum) {
         throw 'Adoptium did not return a JDK download URL and SHA-256 checksum.'
@@ -157,16 +157,16 @@ try {
         Remove-Item -LiteralPath $jdkHome -Recurse -Force
     }
     Move-Item -LiteralPath $jdkRoot.FullName -Destination $jdkHome
-    if (-not (Test-Java21Home $jdkHome)) {
+    if (-not (Test-Java25Home $jdkHome)) {
         Remove-Item -LiteralPath $jdkHome -Recurse -Force -ErrorAction SilentlyContinue
-        throw 'The downloaded JDK failed the Java 21 version verification.'
+        throw 'The downloaded JDK failed the Java 25 version verification.'
     }
 
     [Console]::Out.WriteLine((Resolve-Path -LiteralPath $jdkHome).Path)
     exit 0
 }
 catch {
-    [Console]::Error.WriteLine("Tabby: automatic Java 21 setup failed: $($_.Exception.Message)")
+    [Console]::Error.WriteLine("Tabby: automatic Java 25 setup failed: $($_.Exception.Message)")
     exit 1
 }
 finally {
