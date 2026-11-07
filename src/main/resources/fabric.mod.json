@@ -3,7 +3,7 @@
   "id": "tabby",
   "version": "${version}",
   "name": "Tabby",
-  "description": "Browser-style client tabs for Minecraft 1.21.4.",
+  "description": "Browser-style client tabs for Minecraft 1.21.11.",
   "contact": {
     "homepage": "https://github.com/MAKAKAIglitch",
     "sources": "https://github.com/MAKAKAIglitch/tabby",
@@ -25,13 +25,13 @@
     "tabby.optional.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.14",
-    "minecraft": "~1.21.4",
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~1.21.11",
     "java": ">=21",
     "fabric-api": "*"
   },
   "suggests": {
-    "modmenu": ">=13.0.2"
+    "modmenu": ">=17.0.1"
   },
   "authors": [
     "MAKAKAIglitch"
