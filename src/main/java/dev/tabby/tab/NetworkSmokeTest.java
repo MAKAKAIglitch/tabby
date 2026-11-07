@@ -25,9 +25,8 @@ import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket;
-import net.minecraft.network.protocol.game.ServerboundClientTickEndPacket;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.entity.player.Input;
+import net.minecraft.client.player.Input;
 import net.minecraft.network.PacketListener;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
@@ -226,7 +225,12 @@ public final class NetworkSmokeTest {
     }
 
     private static void seedCachedMovementInput(net.minecraft.client.player.LocalPlayer player) {
-        player.input.keyPresses = new Input(true, true, true, true, true, true, true);
+        player.input.up = true;
+        player.input.down = true;
+        player.input.left = true;
+        player.input.right = true;
+        player.input.jumping = true;
+        player.input.shiftKeyDown = true;
         player.input.leftImpulse = 1.0F;
         player.input.forwardImpulse = 1.0F;
     }
@@ -236,7 +240,8 @@ public final class NetworkSmokeTest {
         String tabLabel
     ) {
         require(
-            Input.EMPTY.equals(player.input.keyPresses),
+            !player.input.up && !player.input.down && !player.input.left
+                && !player.input.right && !player.input.jumping && !player.input.shiftKeyDown,
             "Switching tabs left stale key presses cached for the " + tabLabel
         );
         require(
@@ -1225,7 +1230,6 @@ public final class NetworkSmokeTest {
             0.0F,
             true
         );
-        Packet<?> clientTickEnd = ServerboundClientTickEndPacket.INSTANCE;
 
         require(
             TabManager.shouldSuppressOutOfPhasePlayPacket(playerMovement, ConnectionProtocol.CONFIGURATION),
