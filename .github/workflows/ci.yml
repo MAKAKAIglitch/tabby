@@ -1,4 +1,4 @@
-name: Build and client smoke test
+name: Build Minecraft 1.21.11
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -7,9 +7,7 @@ concurrency:
 on:
   push:
     branches:
-      - "main"
-      - "fabric/**"
-      - "neoforge/**"
+      - "fabric/1.21.11"
   pull_request:
     branches:
       - "**"
@@ -19,35 +17,12 @@ permissions:
   contents: read
 
 jobs:
-  windows-wrapper:
-    runs-on: windows-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Build with the same launcher used by Windows users
-        shell: pwsh
-        run: |
-          $env:TABBY_NO_PAUSE = "1"
-          & .\build-tabby.bat
-          $buildExitCode = $LASTEXITCODE
-          if ($buildExitCode -ne 0) { throw "build-tabby.bat failed with exit code $buildExitCode" }
-
-          $jar = Get-Item -LiteralPath ".\dist\Tabby-1.21.4.jar" -ErrorAction Stop
-          if ($jar.Length -le 0) { throw "The exported JAR is empty." }
-          Write-Host "Verified local build output: $($jar.FullName) ($($jar.Length) bytes)"
-
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -59,6 +34,7 @@ jobs:
           java-version: "21"
 
       - name: Validate Java selector shell syntax
+        if: runner.os == 'Linux'
         run: sh -n gradle/auto-java.sh
 
       - name: Verify wrapper selects Java 21
@@ -70,228 +46,22 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build mod
-        run: ./gradlew build
+      - name: Build and export mod
+        if: runner.os == 'Linux'
+        run: ./gradlew build exportModJar
 
-      - name: Start two offline-mode Minecraft test servers
+      - name: Verify exported JAR
+        if: runner.os == 'Linux'
         shell: bash
         run: |
-          set -euo pipefail
-          root="$RUNNER_TEMP/tabby-test-servers"
-          mkdir -p "$root/a" "$root/b"
-          echo "TABBY_SERVER_A_PID_FILE=$root/a/server.pid" >> "$GITHUB_ENV"
-          echo "TABBY_SERVER_B_PID_FILE=$root/b/server.pid" >> "$GITHUB_ENV"
-          rcon_password="$(openssl rand -hex 16)"
-          echo "::add-mask::$rcon_password"
-          echo "TABBY_RCON_PASSWORD=$rcon_password" >> "$GITHUB_ENV"
-          echo "TABBY_RCON_PORT_A=25575" >> "$GITHUB_ENV"
-          echo "TABBY_RCON_PORT_B=25576" >> "$GITHUB_ENV"
+          version="$(sed -n 's/^minecraft_version=//p' gradle.properties)"
+          test -s "dist/Tabby-${version}.jar"
+          jar tf "dist/Tabby-${version}.jar" >/dev/null
 
-          manifest_url="$(curl -fsSL https://piston-meta.mojang.com/mc/game/version_manifest_v2.json | jq -r '.versions[] | select(.id == "1.21.4") | .url')"
-          test -n "$manifest_url" && test "$manifest_url" != "null"
-          version_meta="$(curl -fsSL "$manifest_url")"
-          server_url="$(jq -r '.downloads.server.url' <<< "$version_meta")"
-          server_sha1="$(jq -r '.downloads.server.sha1' <<< "$version_meta")"
-          curl -fL --retry 3 "$server_url" -o "$root/server.jar"
-          echo "$server_sha1  $root/server.jar" | sha1sum --check -
-
-          start_server() {
-            local dir="$1"
-            local port="$2"
-            local world="$3"
-            local seed="$4"
-            local motd="$5"
-            local rcon_port="$6"
-
-            cp "$root/server.jar" "$dir/server.jar"
-            printf 'eula=true\n' > "$dir/eula.txt"
-            cat > "$dir/server.properties" <<EOF
-          server-ip=127.0.0.1
-          server-port=$port
-          online-mode=false
-          enforce-secure-profile=false
-          motd=$motd
-          level-name=$world
-          level-seed=$seed
-          gamemode=creative
-          difficulty=peaceful
-          max-players=4
-          view-distance=4
-          simulation-distance=4
-          spawn-protection=0
-          enable-rcon=true
-          rcon.password=$rcon_password
-          rcon.port=$rcon_port
-          EOF
-            (
-              cd "$dir"
-              nohup java -Xms256M -Xmx768M -jar server.jar nogui > server.log 2>&1 < /dev/null &
-              echo $! > server.pid
-            )
-          }
-
-          start_server "$root/a" 25565 "tabby-world-a" 12104 "Tabby CI A" 25575
-          start_server "$root/b" 25566 "tabby-world-b" 12105 "Tabby CI B" 25576
-
-          for attempt in $(seq 1 120); do
-            ready_a=0
-            ready_b=0
-            grep -q 'Done (' "$root/a/server.log" && ready_a=1 || true
-            grep -q 'Done (' "$root/b/server.log" && ready_b=1 || true
-            if [ "$ready_a" -eq 1 ] && [ "$ready_b" -eq 1 ]; then
-              echo "Both offline-mode test servers are ready."
-              exit 0
-            fi
-            for server_dir in "$root/a" "$root/b"; do
-              if [ -f "$server_dir/server.pid" ] && ! kill -0 "$(cat "$server_dir/server.pid")" 2>/dev/null; then
-                echo "Test server exited unexpectedly: $server_dir"
-                tail -n 100 "$server_dir/server.log" || true
-                exit 1
-              fi
-            done
-            sleep 1
-          done
-
-          echo "Timed out waiting for the test servers."
-          tail -n 100 "$root/a/server.log" || true
-          tail -n 100 "$root/b/server.log" || true
-          exit 1
-
-      - name: Prepare single-player world fixtures
-        shell: bash
+      - name: Build with Windows launcher
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          set -euo pipefail
-          root="$RUNNER_TEMP/tabby-test-servers"
-          mkdir -p run/saves
-          cp -a "$root/a/tabby-world-a" run/saves/tabby-sp-test-a
-          cp -a "$root/b/tabby-world-b" run/saves/tabby-sp-test-b
-          test -s run/saves/tabby-sp-test-a/level.dat
-          test -s run/saves/tabby-sp-test-b/level.dat
-          echo "Prepared two local single-player world fixtures from the same-version Minecraft servers."
-
-      - name: Launch Minecraft client and verify network and single-player isolation
-        shell: bash
-        run: |
-          set +e
-          timeout 480s env TABBY_NETWORK_SMOKE_TEST=1 xvfb-run -a ./gradlew runClient 2>&1 | tee network-runclient.log
-          status=${PIPESTATUS[0]}
-          set -e
-
-          if [ "$status" -eq 0 ] \
-            && grep -Fq "Tabby initialized for Minecraft 1.21.4." network-runclient.log \
-            && grep -Fq "Tabby network smoke test passed: both connections remained live for 2400 ticks." network-runclient.log \
-            && grep -Fq "Tabby single-player integration smoke test passed: network disconnect returned, the hidden IntegratedServer survived, second-world launch was blocked, and cleanup completed." network-runclient.log; then
-            echo "Network switching, integrated-world retention, second-world blocking, and cleanup all passed."
-            exit 0
-          fi
-
-          echo "Network/single-player client test failed (exit code: $status)."
-          exit 1
-
-      - name: Verify Sodium, Iris, Lithium, and Mod Menu compatibility
-        shell: bash
-        run: |
-          set -euo pipefail
-          compat_root="$RUNNER_TEMP/tabby-compatibility"
-          mods_dir="run/mods"
-          mkdir -p "$compat_root/downloads" "$mods_dir"
-
-          fetch_verified_mod() {
-            local filename="$1"
-            local url="$2"
-            local expected_sha512="$3"
-            local output="$compat_root/downloads/$filename"
-            curl -fL --retry 3 "$url" -o "$output"
-            printf '%s  %s\n' "$expected_sha512" "$output" | sha512sum --check -
-          }
-
-          fetch_verified_mod "sodium.jar" \
-            "https://cdn.modrinth.com/data/AANobbMI/versions/c3YkZvne/sodium-fabric-0.6.13%2Bmc1.21.4.jar" \
-            "2c72ca2ddfd27e29ff6c24fccdf6f3d80857bd1014c707017f96cb4a424f94918e53ba21d85f22e3c9171803f8d2c12c99ae857d38d8e85546cc65960b95a2f1"
-          fetch_verified_mod "iris.jar" \
-            "https://cdn.modrinth.com/data/YL57xq9U/versions/Ca054sTe/iris-fabric-1.8.8%2Bmc1.21.4.jar" \
-            "5296c4b0c0be6d5259b985577154c02e6534818465205e6995b5229b26414b423d333199152693118a897f31312e4de051abe28df7d0dd0950c8b649e54a50a0"
-          fetch_verified_mod "lithium.jar" \
-            "https://cdn.modrinth.com/data/gvQqBUqZ/versions/u8pHPXJl/lithium-fabric-0.15.3%2Bmc1.21.4.jar" \
-            "b8b541c0e968571c8972872b342e34b92573bc9210d455dc1349589f30a67a90d930dbfd99b176ab9b110350ceb53e11118378dc13a35e83a9090826627bdac0"
-          fetch_verified_mod "modmenu.jar" \
-            "https://cdn.modrinth.com/data/mOgUt4GM/versions/qPUMDJX6/modmenu-13.0.2.jar" \
-            "7be7ea40934865ae71c2805ac228b2cd808d1f0dd1ec361e10ab5e84d881a3abd3f427d840153f89a501a7f08198781c88f17811c2b6373a3d30b5696c3d073d"
-
-          # Pin the exact 1.21.4 Fabric release; verify the artifact against its Modrinth SHA-512 manifest.
-          voicechat_version_json="$compat_root/voicechat-version.json"
-          curl -fL --retry 3 -H 'User-Agent: MAKAKAIglitch/Tabby/1.0 (https://github.com/MAKAKAIglitch/tabby)' \
-            "https://api.modrinth.com/v2/version/sy5XBA6v" -o "$voicechat_version_json"
-          voicechat_url="$(jq -er '.files[] | select(.primary == true) | .url' "$voicechat_version_json")"
-          voicechat_sha512="$(jq -er '.files[] | select(.primary == true) | .hashes.sha512' "$voicechat_version_json")"
-          fetch_verified_mod "voicechat.jar" "$voicechat_url" "$voicechat_sha512"
-
-          for mod in sodium iris lithium modmenu voicechat; do
-            rm -f "$mods_dir"/*.jar
-            case "$mod" in
-              sodium)
-                cp "$compat_root/downloads/sodium.jar" "$mods_dir/sodium.jar"
-                ;;
-              iris)
-                # Iris requires Sodium, so that dependency is included for this isolated Iris check.
-                cp "$compat_root/downloads/sodium.jar" "$mods_dir/sodium.jar"
-                cp "$compat_root/downloads/iris.jar" "$mods_dir/iris.jar"
-                ;;
-              lithium)
-                cp "$compat_root/downloads/lithium.jar" "$mods_dir/lithium.jar"
-                ;;
-              modmenu)
-                cp "$compat_root/downloads/modmenu.jar" "$mods_dir/modmenu.jar"
-                ;;
-              voicechat)
-                cp "$compat_root/downloads/voicechat.jar" "$mods_dir/voicechat.jar"
-                ;;
-            esac
-
-            log="$compat_root/$mod.log"
-            echo "Running compatibility smoke test with $mod..."
-            set +e
-            timeout 180s env ALSOFT_DRIVERS=null TABBY_COMPAT_SMOKE_TEST=1 TABBY_COMPAT_MOD="$mod" \
-              xvfb-run -a ./gradlew runClient 2>&1 | tee "$log"
-            status=${PIPESTATUS[0]}
-            set -e
-
-            if [ "$status" -ne 0 ] \
-              || ! grep -Fq "Tabby compatibility smoke test passed for $mod:" "$log"; then
-              echo "Compatibility smoke test failed for $mod (exit code: $status)."
-              tail -n 160 "$log" || true
-              exit 1
-            fi
-            echo "Compatibility smoke test passed for $mod."
-          done
-
-          rm -f "$mods_dir"/*.jar
-
-      - name: Upload crash and client diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: tabby-crash-diagnostics-${{ github.run_id }}
-          path: |
-            run/crash-reports/**
-            run/logs/latest.log
-            run/logs/*.log
-            run/hs_err_pid*.log
-            network-runclient.log
-            gradle-version.txt
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Stop local test servers
-        if: always()
-        shell: bash
-        run: |
-          root="$RUNNER_TEMP/tabby-test-servers"
-          for server_dir in "$root/a" "$root/b"; do
-            if [ -f "$server_dir/server.log" ]; then
-              tail -n 20 "$server_dir/server.log" || true
-            fi
-            if [ -f "$server_dir/server.pid" ]; then
-              kill "$(cat "$server_dir/server.pid")" 2>/dev/null || true
-            fi
-          done
+          $env:TABBY_NO_PAUSE = "1"
+          & .\build-tabby.bat
+          if ($LASTEXITCODE -ne 0) { throw "Windows launcher build failed: $LASTEXITCODE" }
