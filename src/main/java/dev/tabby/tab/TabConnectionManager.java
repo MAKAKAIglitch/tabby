@@ -20,7 +20,6 @@ import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket;
-import net.minecraft.network.protocol.game.ServerboundClientTickEndPacket;
 import net.minecraft.network.DisconnectionDetails;
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.TickablePacketListener;
@@ -49,7 +48,7 @@ final class TabConnectionManager {
     static boolean shouldSuppressOutOfPhasePlayPacket(Packet<?> packet, ConnectionProtocol phase) {
         boolean playOnlyPacket = packet instanceof ServerboundMovePlayerPacket
             || packet instanceof ServerboundMoveVehiclePacket
-            || packet instanceof ServerboundClientTickEndPacket;
+;
         return playOnlyPacket && phase != ConnectionProtocol.PLAY;
     }
 
