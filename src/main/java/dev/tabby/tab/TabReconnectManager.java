@@ -259,11 +259,11 @@ final class TabReconnectManager {
                 client.gui = context.gui;
                 client.hitResult = null;
                 client.crosshairPickEntity = null;
-                client.cameraEntity = null;
+                client.setCameraEntity(null);
                 MinecraftAccessor accessor = (MinecraftAccessor) client;
                 accessor.tabby$setPendingConnection(null);
                 accessor.tabby$setLocalServer(false);
-                client.entityRenderDispatcher.setLevel(null);
+                client.entityRenderDispatcher.resetCamera();
                 if (context.levelRenderer != null) {
                     context.levelRenderer.setLevel(null);
                 }
