@@ -1,0 +1,1 @@
+Temporary pull-request trigger for validating the Fabric 1.21.11 toolchain. Remove this file after the CI check.
