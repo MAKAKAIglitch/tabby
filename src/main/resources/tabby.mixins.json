@@ -26,6 +26,7 @@
     "ClientLevelAccessor",
     "ClientLoginMixin",
     "PauseScreenAccessor",
+    "ButtonAccessor",
     "VoxyLevelRendererMixin",
     "PauseScreenMixin"
   ],
