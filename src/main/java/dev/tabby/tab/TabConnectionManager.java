@@ -313,7 +313,7 @@ final class TabConnectionManager {
     static void disconnectCurrentTabBeforeConnecting(Minecraft minecraft) {
         Minecraft client = TabManager.clientInstance();
         if (client == null || minecraft != client) {
-            minecraft.disconnectFromWorld(ClientLevel.DEFAULT_QUIT_MESSAGE);
+            minecraft.disconnectFromWorld(net.minecraft.client.multiplayer.ClientLevel.DEFAULT_QUIT_MESSAGE);
             return;
         }
 
