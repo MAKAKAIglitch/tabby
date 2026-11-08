@@ -509,7 +509,7 @@ public final class TabManager {
         context.gui = client.gui;
         context.hitResult = client.hitResult;
         context.crosshairPickEntity = client.crosshairPickEntity;
-        context.cameraEntity = client.cameraEntity;
+        context.cameraEntity = client.getCameraEntity();
         context.clientConnection = listener;
         context.networkConnection = listener.getConnection();
         context.localServer = listener.getConnection().isMemoryConnection();
@@ -581,9 +581,7 @@ public final class TabManager {
             && ((LevelRendererAccessor) context.levelRenderer).tabby$getLevel() != context.level) {
             context.levelRenderer.setLevel(context.level);
         }
-        if (context.levelRenderer != null) {
-            client.entityRenderDispatcher.setLevel(context.level);
-        }
+        client.gameRenderer.setLevel(context.level);
         if (context.particleEngine != null
             && ((ParticleEngineAccessor) context.particleEngine).tabby$getLevel() != context.level) {
             context.particleEngine.setLevel(context.level);
@@ -808,10 +806,8 @@ public final class TabManager {
             // setLevel() calls allChanged(), so only call it if the renderer has a different world.
             if (((LevelRendererAccessor) target.levelRenderer).tabby$getLevel() != target.level) {
                 target.levelRenderer.setLevel(target.level);
-            } else {
-                // The entity dispatcher is shared by Minecraft, unlike LevelRenderer.
-                client.entityRenderDispatcher.setLevel(target.level);
             }
+            client.gameRenderer.setLevel(target.level);
             if (((ParticleEngineAccessor) target.particleEngine).tabby$getLevel() != target.level) {
                 target.particleEngine.setLevel(target.level);
             }
