@@ -721,7 +721,7 @@ public final class TabManager {
         }
         blockedSingleplayerWorldStartCount++;
         SystemToast.add(
-            client.getToastManager(),
+            client.getToasts(),
             SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
             Component.literal("Tabby"),
             Component.literal("A single-player world is already open in another tab.")

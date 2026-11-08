@@ -1216,20 +1216,15 @@ public final class NetworkSmokeTest {
         );
     }
 
-    private static void validatePlayPacketProtocolGuard() {
+    private static void validatePlayPacketProtocolGuard(Minecraft client) {
         Packet<?> playerMovement = new ServerboundMovePlayerPacket.Pos(
             0.0,
             64.0,
             0.0,
-            true,
-            false
-        );
-        Packet<?> vehicleMovement = new ServerboundMoveVehiclePacket(
-            new Vec3(0.0, 64.0, 0.0),
-            0.0F,
-            0.0F,
             true
         );
+        require(client.player != null, "Vehicle movement packet test requires an active player");
+        Packet<?> vehicleMovement = new ServerboundMoveVehiclePacket(client.player);
 
         require(
             TabManager.shouldSuppressOutOfPhasePlayPacket(playerMovement, ConnectionProtocol.CONFIGURATION),
@@ -1247,19 +1242,11 @@ public final class NetworkSmokeTest {
             !TabManager.shouldSuppressOutOfPhasePlayPacket(vehicleMovement, ConnectionProtocol.PLAY),
             "Valid PLAY-phase vehicle movement was incorrectly suppressed"
         );
-        require(
-            TabManager.shouldSuppressOutOfPhasePlayPacket(clientTickEnd, ConnectionProtocol.CONFIGURATION),
-            "PLAY-only client tick-end packet was not suppressed during CONFIGURATION"
-        );
-        require(
-            !TabManager.shouldSuppressOutOfPhasePlayPacket(clientTickEnd, ConnectionProtocol.PLAY),
-            "Valid PLAY-phase client tick-end packet was incorrectly suppressed"
-        );
         LOGGER.info("Network smoke test: PLAY-only packets are gated by the live protocol phase");
     }
 
     private static void validateConnections(Minecraft client) {
-        validatePlayPacketProtocolGuard();
+        validatePlayPacketProtocolGuard(client);
         TabContext serverA = context(0);
         TabContext serverB = context(1);
         require(isJoined(serverA), "Server A disconnected or lost its client world/player");

@@ -337,7 +337,7 @@ final class TabReconnectManager {
             return;
         }
         SystemToast.add(
-            client.getToastManager(),
+            client.getToasts(),
             SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
             Component.literal("Tabby"),
             Component.translatable(key, context.title())

@@ -30,7 +30,7 @@ final class TabLifecycleManager {
         }
         if (!TabRegistry.isEmpty() && TabRegistry.size() - 1 >= TabbyConfig.maxBackgroundTabs()) {
             SystemToast.add(
-                client.getToastManager(),
+                client.getToasts(),
                 SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
                 Component.translatable("tabby.toast.limit_title"),
                 Component.translatable("tabby.toast.limit_message")
