@@ -8,7 +8,7 @@ import net.minecraft.client.particle.ParticleEngine;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -33,7 +33,7 @@ public abstract class ParticleEngineMixin {
 
     @Shadow
     @Final
-    private Map<ResourceLocation, ?> spriteSets;
+    private Map<Identifier, ?> spriteSets;
 
     @Unique
     private boolean tabby$shouldSuppressParticleMutation() {
@@ -71,7 +71,7 @@ public abstract class ParticleEngineMixin {
             return;
         }
 
-        ResourceLocation particleId = BuiltInRegistries.PARTICLE_TYPE.getKey(options.getType());
+        Identifier particleId = BuiltInRegistries.PARTICLE_TYPE.getKey(options.getType());
         Object spriteSet = this.spriteSets.get(particleId);
         if (spriteSet != null) {
             List<TextureAtlasSprite> sprites =
