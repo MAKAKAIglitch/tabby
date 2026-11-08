@@ -1216,20 +1216,15 @@ public final class NetworkSmokeTest {
         );
     }
 
-    private static void validatePlayPacketProtocolGuard() {
+    private static void validatePlayPacketProtocolGuard(Minecraft client) {
         Packet<?> playerMovement = new ServerboundMovePlayerPacket.Pos(
             0.0,
             64.0,
             0.0,
-            true,
-            false
-        );
-        Packet<?> vehicleMovement = new ServerboundMoveVehiclePacket(
-            new Vec3(0.0, 64.0, 0.0),
-            0.0F,
-            0.0F,
             true
         );
+        require(client.player != null, "Vehicle movement packet test requires an active player");
+        Packet<?> vehicleMovement = new ServerboundMoveVehiclePacket(client.player);
 
         require(
             TabManager.shouldSuppressOutOfPhasePlayPacket(playerMovement, ConnectionProtocol.CONFIGURATION),
