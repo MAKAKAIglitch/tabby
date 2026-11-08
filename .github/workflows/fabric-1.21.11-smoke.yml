@@ -1,0 +1,68 @@
+name: Fabric 1.21.11 client smoke test
+
+on:
+  push:
+    branches:
+      - "fabric/1.21.11"
+      - "port/fabric-1.21.11-clean"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  client-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Launch Minecraft and verify tab context switching
+        shell: bash
+        run: |
+          set +e
+          timeout 180s env ALSOFT_DRIVERS=null TABBY_SMOKE_TEST=1 xvfb-run -a ./gradlew runClient 2>&1 | tee client-smoke.log
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if ! grep -Fq "Tabby initialized for Minecraft 1.21.11." client-smoke.log; then
+            echo "Minecraft 1.21.11 did not initialize Tabby."
+            exit 1
+          fi
+
+          if ! grep -Fq "Tabby prototype context-switch smoke test passed." client-smoke.log; then
+            echo "Tab context-switch smoke test did not finish successfully."
+            exit 1
+          fi
+
+          # runClient remains open after the smoke test; timeout is expected.
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            echo "Minecraft client exited unexpectedly (exit code: $status)."
+            exit 1
+          fi
+
+          echo "Minecraft 1.21.11 startup and tab context-switch smoke test passed."
+
+      - name: Upload client diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tabby-1.21.11-client-smoke-diagnostics-${{ github.run_id }}
+          path: |
+            client-smoke.log
+            run/crash-reports/**
+            run/logs/latest.log
+            run/logs/*.log
+            run/hs_err_pid*.log
+          if-no-files-found: warn
+          retention-days: 7
