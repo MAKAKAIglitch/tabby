@@ -143,8 +143,8 @@ public final class TabBar {
                 }
             );
             ScreenMouseEvents.allowMouseClick(screen).register(
-                (clickedScreen, mouseX, mouseY, button) ->
-                    !isVisibleOnScreen(clickedScreen) || !handleClick(client, mouseX, mouseY, button)
+                (clickedScreen, click) ->
+                    !isVisibleOnScreen(clickedScreen) || !handleClick(client, click.x(), click.y(), click.button())
             );
         });
     }
@@ -161,7 +161,7 @@ public final class TabBar {
             case "hidden" -> false;
             case "hover_or_alt" -> {
                 Minecraft client = Minecraft.getInstance();
-                long window = client.getWindow().getWindow();
+                long window = client.getWindow().handle();
                 boolean altDown = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
                     || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
                 double mouseY = client.mouseHandler.ypos()
