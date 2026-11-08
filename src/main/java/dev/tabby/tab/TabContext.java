@@ -187,7 +187,7 @@ public final class TabContext {
      */
     public void refreshMovementInputAfterKeyRelease() {
         if (this.player != null && this.player.input != null) {
-            this.player.input.tick();
+            this.player.input.tick(false, 0.0F);
         }
     }
 
