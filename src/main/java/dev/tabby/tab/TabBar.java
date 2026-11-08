@@ -333,7 +333,7 @@ public final class TabBar {
         }
 
         if (draggingTabId >= 0
-            && GLFW.glfwGetMouseButton(client.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
+            && GLFW.glfwGetMouseButton(client.getWindow().handle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) != GLFW.GLFW_PRESS) {
             handleMouseRelease(client);
         }
 
@@ -444,7 +444,7 @@ public final class TabBar {
         if (client == null) {
             return;
         }
-        long window = client.getWindow().getWindow();
+        long window = client.getWindow().handle();
         boolean leftButtonDown = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
         handleMouseMove(client, rawMouseX, rawMouseY, leftButtonDown);
     }
