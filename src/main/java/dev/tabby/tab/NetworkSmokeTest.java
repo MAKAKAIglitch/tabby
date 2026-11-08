@@ -842,10 +842,9 @@ public final class NetworkSmokeTest {
     }
 
     private static void pressShortcut(Minecraft client, int key) {
-        client.keyboardHandler.keyPress(
-            client.getWindow().handle(),
-            GLFW.GLFW_PRESS,
-            new net.minecraft.client.input.KeyEvent(key, 0, GLFW.GLFW_MOD_CONTROL)
+        require(
+            TabManager.handleShortcut(key, GLFW.GLFW_MOD_CONTROL),
+            "Tabby did not handle Ctrl shortcut key " + key
         );
     }
 
