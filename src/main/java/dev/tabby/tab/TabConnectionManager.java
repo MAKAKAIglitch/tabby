@@ -319,7 +319,7 @@ final class TabConnectionManager {
 
         TabContext context = TabRegistry.get(TabManager.currentContextId());
         if (context == null) {
-            minecraft.disconnect();
+            minecraft.disconnectFromWorld(net.minecraft.client.multiplayer.ClientLevel.DEFAULT_QUIT_MESSAGE);
             return;
         }
 
@@ -342,7 +342,7 @@ final class TabConnectionManager {
                 context.localServer,
                 ownsLiveListener || liveNetwork || livePending
             );
-            minecraft.disconnect();
+            minecraft.disconnectFromWorld(net.minecraft.client.multiplayer.ClientLevel.DEFAULT_QUIT_MESSAGE);
             return;
         }
 
