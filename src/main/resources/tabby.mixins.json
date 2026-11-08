@@ -13,6 +13,7 @@
     "MinecraftAccessor",
     "ChatComponentAccessor",
     "ParticleEngineMixin",
+    "ParticleResourcesAccessor",
     "KeyboardHandlerMixin",
     "MouseHandlerMixin",
     "ConnectScreenMixin",
@@ -25,6 +26,7 @@
     "ClientLevelAccessor",
     "ClientLoginMixin",
     "PauseScreenAccessor",
+    "ButtonAccessor",
     "VoxyLevelRendererMixin",
     "PauseScreenMixin"
   ],

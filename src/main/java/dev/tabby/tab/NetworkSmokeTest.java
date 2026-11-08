@@ -227,8 +227,7 @@ public final class NetworkSmokeTest {
 
     private static void seedCachedMovementInput(net.minecraft.client.player.LocalPlayer player) {
         player.input.keyPresses = new Input(true, true, true, true, true, true, true);
-        player.input.leftImpulse = 1.0F;
-        player.input.forwardImpulse = 1.0F;
+        player.input.moveVector = new net.minecraft.world.phys.Vec2(1.0F, 1.0F);
     }
 
     private static void requireCachedMovementInputCleared(
@@ -240,7 +239,7 @@ public final class NetworkSmokeTest {
             "Switching tabs left stale key presses cached for the " + tabLabel
         );
         require(
-            player.input.leftImpulse == 0.0F && player.input.forwardImpulse == 0.0F,
+            player.input.moveVector.equals(net.minecraft.world.phys.Vec2.ZERO),
             "Switching tabs left stale movement impulses cached for the " + tabLabel
         );
     }
@@ -573,7 +572,7 @@ public final class NetworkSmokeTest {
     private static boolean hasItem(TabContext context, Item item) {
         return context != null
             && context.player != null
-            && context.player.getInventory().items.stream().anyMatch(stack -> stack.is(item));
+            && context.player.getInventory().getNonEquipmentItems().stream().anyMatch(stack -> stack.is(item));
     }
 
     private static boolean hasChatMarker(TabContext context, String marker) {
@@ -782,7 +781,7 @@ public final class NetworkSmokeTest {
             "key.tabby.smoke_held_key",
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_F11,
-            "category.tabby"
+            KeyMapping.Category.register(net.minecraft.resources.Identifier.parse("tabby:smoke_test"))
         );
         heldKey.setDown(true);
         TabManager.switchTo(0);
@@ -843,12 +842,9 @@ public final class NetworkSmokeTest {
     }
 
     private static void pressShortcut(Minecraft client, int key) {
-        client.keyboardHandler.keyPress(
-            client.getWindow().getWindow(),
-            key,
-            0,
-            GLFW.GLFW_PRESS,
-            GLFW.GLFW_MOD_CONTROL
+        require(
+            TabManager.handleShortcut(key, GLFW.GLFW_MOD_CONTROL),
+            "Tabby did not handle Ctrl shortcut key " + key
         );
     }
 
@@ -911,7 +907,7 @@ public final class NetworkSmokeTest {
         LOGGER.info(
             "Network smoke test: pressing PauseScreen Disconnect on tab 0 while tab 1 is another live network connection"
         );
-        disconnectButton.onPress();
+        disconnectButton.onPress(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
 
         require(!disconnectingConnection.isConnected(),
             "Disconnect did not close the selected network connection");
@@ -1073,7 +1069,7 @@ public final class NetworkSmokeTest {
             LOGGER.info(
                 "Network smoke test: pressing the real PauseScreen Disconnect button while an integrated server is retained in another tab"
             );
-            disconnectButton.onPress();
+            disconnectButton.onPress(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
             LOGGER.info("Network smoke test: PauseScreen Disconnect button returned");
             require(client.level == null && client.player == null && client.getConnection() == null,
                 "Disconnecting the network tab left a world/player/connection installed globally");

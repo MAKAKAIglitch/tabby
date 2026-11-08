@@ -6,3 +6,4 @@ accessible field net/minecraft/client/Minecraft entityRenderDispatcher Lnet/mine
 accessible field net/minecraft/client/Minecraft blockEntityRenderDispatcher Lnet/minecraft/client/renderer/blockentity/BlockEntityRenderDispatcher;
 accessible field net/minecraft/client/Minecraft renderBuffers Lnet/minecraft/client/renderer/RenderBuffers;
 accessible field net/minecraft/client/Minecraft textureManager Lnet/minecraft/client/renderer/texture/TextureManager;
+accessible field net/minecraft/client/player/ClientInput moveVector Lnet/minecraft/world/phys/Vec2;

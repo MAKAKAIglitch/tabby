@@ -22,10 +22,10 @@ public abstract class ConnectScreenMixin {
         method = "startConnecting(Lnet/minecraft/client/gui/screens/Screen;Lnet/minecraft/client/Minecraft;Lnet/minecraft/client/multiplayer/resolver/ServerAddress;Lnet/minecraft/client/multiplayer/ServerData;ZLnet/minecraft/client/multiplayer/TransferState;)V",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/Minecraft;disconnect()V"
+            target = "Lnet/minecraft/client/Minecraft;disconnectWithProgressScreen(Z)V"
         )
     )
-    private static void tabby$disconnectOnlyTheSelectedTab(Minecraft minecraft) {
+    private static void tabby$disconnectOnlyTheSelectedTab(Minecraft minecraft, boolean stopSound) {
         TabManager.disconnectCurrentTabBeforeConnecting(minecraft);
     }
 

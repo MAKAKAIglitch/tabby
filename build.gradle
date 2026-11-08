@@ -8,6 +8,7 @@ group = project.maven_group
 // Capture scalar values once so task action closures remain configuration-cache compatible.
 def tabbyVersion = project.version.toString()
 def tabbyArchiveName = project.archives_base_name.toString()
+def tabbyMinecraftVersion = project.minecraft_version.toString()
 
 base {
     archivesName = project.archives_base_name
@@ -66,11 +67,11 @@ jar {
 // Export one predictable, remapped JAR for local installation/testing.
 tasks.register("exportModJar", Copy) {
     group = "build"
-    description = "Copies the remapped mod JAR to dist/Tabby-${project.minecraft_version}.jar."
+    description = "Copies the remapped mod JAR to dist/Tabby-${tabbyMinecraftVersion}.jar."
     dependsOn(tasks.named("remapJar"))
     from(tasks.named("remapJar").flatMap { it.archiveFile })
     into(layout.projectDirectory.dir("dist"))
-    rename { "Tabby-${project.minecraft_version}.jar" }
+    rename { "Tabby-${tabbyMinecraftVersion}.jar" }
 }
 
 // Open the compiled mod directory after a successful local Windows build.

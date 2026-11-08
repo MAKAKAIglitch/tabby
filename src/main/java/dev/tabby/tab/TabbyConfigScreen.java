@@ -193,8 +193,9 @@ public final class TabbyConfigScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (pendingBinding == null) return super.keyPressed(keyCode, scanCode, modifiers);
+    public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
+        int keyCode = event.key();
+        if (pendingBinding == null) return super.keyPressed(event);
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             pendingBinding = null;
             status = Component.translatable("tabby.settings.key.cancelled");

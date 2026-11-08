@@ -247,13 +247,13 @@ final class TabConnectionManager {
         client.gameMode = null;
         client.hitResult = null;
         client.crosshairPickEntity = null;
-        client.cameraEntity = null;
+        client.setCameraEntity(null);
         client.gui = context.gui;
 
         // The dispatcher and particle engine are shared by Minecraft. A background
         // disconnect temporarily installs that tab, so restore the visible tab's
         // shared render state after TabManager.runIn() returns.
-        client.entityRenderDispatcher.setLevel(null);
+        client.entityRenderDispatcher.resetCamera();
         if (!background && client.particleEngine != null) {
             client.particleEngine.setLevel(null);
         }
@@ -313,13 +313,13 @@ final class TabConnectionManager {
     static void disconnectCurrentTabBeforeConnecting(Minecraft minecraft) {
         Minecraft client = TabManager.clientInstance();
         if (client == null || minecraft != client) {
-            minecraft.disconnect();
+            minecraft.disconnectFromWorld(net.minecraft.client.multiplayer.ClientLevel.DEFAULT_QUIT_MESSAGE);
             return;
         }
 
         TabContext context = TabRegistry.get(TabManager.currentContextId());
         if (context == null) {
-            minecraft.disconnect();
+            minecraft.disconnectFromWorld(net.minecraft.client.multiplayer.ClientLevel.DEFAULT_QUIT_MESSAGE);
             return;
         }
 
@@ -342,7 +342,7 @@ final class TabConnectionManager {
                 context.localServer,
                 ownsLiveListener || liveNetwork || livePending
             );
-            minecraft.disconnect();
+            minecraft.disconnectFromWorld(net.minecraft.client.multiplayer.ClientLevel.DEFAULT_QUIT_MESSAGE);
             return;
         }
 

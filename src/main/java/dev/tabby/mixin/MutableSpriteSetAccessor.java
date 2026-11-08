@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Safely checks whether a particle provider's sprites have been bound.
  */
-@Mixin(targets = "net.minecraft.client.particle.ParticleEngine$MutableSpriteSet")
+@Mixin(targets = "net.minecraft.client.particle.ParticleResources$MutableSpriteSet")
 public interface MutableSpriteSetAccessor {
     @Accessor("sprites")
     List<TextureAtlasSprite> tabby$getSprites();
