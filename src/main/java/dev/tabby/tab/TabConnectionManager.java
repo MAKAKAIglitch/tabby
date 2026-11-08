@@ -388,7 +388,7 @@ final class TabConnectionManager {
                 existingTitle = address.toString();
             }
             SystemToast.add(
-                client.getToastManager(),
+                client.getToasts(),
                 SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
                 Component.literal("Tabby"),
                 Component.literal("This server is already open in tab '" + existingTitle + "'.")
