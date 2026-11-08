@@ -15,6 +15,6 @@ public final class TabbyClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         TabManager.initialize(Minecraft.getInstance());
-        LOGGER.info("Tabby initialized for Minecraft 1.21.4.");
+        LOGGER.info("Tabby initialized for Minecraft 1.21.1.");
     }
 }
