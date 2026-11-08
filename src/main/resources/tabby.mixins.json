@@ -13,6 +13,7 @@
     "MinecraftAccessor",
     "ChatComponentAccessor",
     "ParticleEngineMixin",
+    "ParticleResourcesAccessor",
     "KeyboardHandlerMixin",
     "MouseHandlerMixin",
     "ConnectScreenMixin",
