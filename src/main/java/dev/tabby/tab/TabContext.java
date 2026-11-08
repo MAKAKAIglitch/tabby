@@ -17,6 +17,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec2;
+import net.minecraft.world.entity.player.Input;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -94,7 +96,9 @@ public final class TabContext {
             client,
             client.entityRenderDispatcher,
             client.blockEntityRenderDispatcher,
-            client.renderBuffers
+            client.renderBuffers,
+            client.gameRenderer.getLevelRenderState(),
+            client.gameRenderer.getFeatureRenderDispatcher()
         );
         context.particleEngine = client.particleEngine;
         context.gui = new Gui(client);
@@ -140,7 +144,7 @@ public final class TabContext {
         this.gui = client.gui;
         this.hitResult = client.hitResult;
         this.crosshairPickEntity = client.crosshairPickEntity;
-        this.cameraEntity = client.cameraEntity;
+        this.cameraEntity = client.getCameraEntity();
         if (TabManager.shouldCaptureScreenFromClient()) {
             this.screen = client.screen;
         }
@@ -187,7 +191,8 @@ public final class TabContext {
      */
     public void refreshMovementInputAfterKeyRelease() {
         if (this.player != null && this.player.input != null) {
-            this.player.input.tick();
+            this.player.input.keyPresses = Input.EMPTY;
+            this.player.input.moveVector = Vec2.ZERO;
         }
     }
 
@@ -200,7 +205,7 @@ public final class TabContext {
         client.gui = this.gui;
         client.hitResult = this.hitResult;
         client.crosshairPickEntity = this.crosshairPickEntity;
-        client.cameraEntity = this.cameraEntity;
+        client.setCameraEntity(this.cameraEntity);
         MinecraftAccessor accessor = (MinecraftAccessor) client;
         accessor.tabby$setPendingConnection(this.pendingConnection);
         accessor.tabby$setLocalServer(this.localServer);
