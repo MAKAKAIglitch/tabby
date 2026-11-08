@@ -152,7 +152,7 @@ final class TabLifecycleManager {
             connection.disconnect(Component.literal("Tab closed"));
         }
         if (context.level != null) {
-            context.level.disconnect();
+            context.level.disconnect(ClientLevel.DEFAULT_QUIT_MESSAGE);
         }
         if (closeRenderer && context.levelRenderer != null) {
             context.levelRenderer.close();
