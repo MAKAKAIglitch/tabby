@@ -45,7 +45,7 @@ public abstract class MinecraftMixin {
         TabManager.beginClientLevelTransition(level);
         boolean installed = false;
         try {
-            original.call(level, reason);
+            original.call(level);
             installed = true;
         } finally {
             if (installed) {
