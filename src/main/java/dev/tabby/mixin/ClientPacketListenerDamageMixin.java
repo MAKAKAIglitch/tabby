@@ -51,13 +51,16 @@ public abstract class ClientPacketListenerDamageMixin {
         ClientboundExplodePacket packet,
         CallbackInfo ci
     ) {
-        packet.playerKnockback().ifPresent(velocity ->
+        float knockbackX = packet.getKnockbackX();
+        float knockbackY = packet.getKnockbackY();
+        float knockbackZ = packet.getKnockbackZ();
+        if (knockbackX != 0.0F || knockbackY != 0.0F || knockbackZ != 0.0F) {
             TabManager.onPlayerExplosion(
                 (ClientPacketListener) (Object) this,
-                velocity.x,
-                velocity.y,
-                velocity.z
-            )
-        );
+                knockbackX,
+                knockbackY,
+                knockbackZ
+            );
+        }
     }
 }
