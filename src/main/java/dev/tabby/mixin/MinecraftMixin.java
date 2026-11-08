@@ -5,7 +5,6 @@ import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.server.WorldStem;
@@ -32,15 +31,14 @@ public abstract class MinecraftMixin {
     }
 
     @WrapMethod(
-        method = "setLevel(Lnet/minecraft/client/multiplayer/ClientLevel;Lnet/minecraft/client/gui/screens/ReceivingLevelScreen$Reason;)V"
+        method = "setLevel(Lnet/minecraft/client/multiplayer/ClientLevel;)V"
     )
     private void tabby$wrapWorldTransition(
         ClientLevel level,
-        ReceivingLevelScreen.Reason reason,
         Operation<Void> original
     ) {
         if (level == null) {
-            original.call(level, reason);
+            original.call(level);
             return;
         }
 
