@@ -4,7 +4,7 @@ import dev.tabby.tab.TabManager;
 import net.minecraft.network.Connection;
 import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.PacketListener;
-import net.minecraft.network.PacketSendListener;
+import io.netty.channel.ChannelFutureListener;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.ProtocolInfo;
 import net.minecraft.network.protocol.PacketFlow;
@@ -25,13 +25,13 @@ public abstract class ConnectionMixin {
     private boolean tabby$reportedOutOfPhasePacket;
 
     @Inject(
-        method = "doSendPacket(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;Z)V",
+        method = "doSendPacket(Lnet/minecraft/network/protocol/Packet;Lio/netty/channel/ChannelFutureListener;Z)V",
         at = @At("HEAD"),
         cancellable = true
     )
     private void tabby$guardPlayPacketsDuringConfiguration(
         Packet<?> packet,
-        PacketSendListener callbacks,
+        ChannelFutureListener callbacks,
         boolean flush,
         CallbackInfo ci
     ) {
