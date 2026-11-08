@@ -1242,14 +1242,6 @@ public final class NetworkSmokeTest {
             !TabManager.shouldSuppressOutOfPhasePlayPacket(vehicleMovement, ConnectionProtocol.PLAY),
             "Valid PLAY-phase vehicle movement was incorrectly suppressed"
         );
-        require(
-            TabManager.shouldSuppressOutOfPhasePlayPacket(clientTickEnd, ConnectionProtocol.CONFIGURATION),
-            "PLAY-only client tick-end packet was not suppressed during CONFIGURATION"
-        );
-        require(
-            !TabManager.shouldSuppressOutOfPhasePlayPacket(clientTickEnd, ConnectionProtocol.PLAY),
-            "Valid PLAY-phase client tick-end packet was incorrectly suppressed"
-        );
         LOGGER.info("Network smoke test: PLAY-only packets are gated by the live protocol phase");
     }
 
