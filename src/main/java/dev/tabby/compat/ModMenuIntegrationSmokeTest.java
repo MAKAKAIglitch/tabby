@@ -43,7 +43,7 @@ public final class ModMenuIntegrationSmokeTest {
             .filter(button -> button.getMessage().getString().contains(pageName))
             .findFirst()
             .orElseThrow(() -> new IllegalStateException("Tabby's settings page is missing: " + pageName));
-        page.onPress(new net.minecraft.client.input.KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+        page.onPress(new net.minecraft.client.input.KeyEvent(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0));
     }
 
     public static void verify() {
