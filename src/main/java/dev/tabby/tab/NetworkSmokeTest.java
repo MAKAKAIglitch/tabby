@@ -844,10 +844,8 @@ public final class NetworkSmokeTest {
     private static void pressShortcut(Minecraft client, int key) {
         client.keyboardHandler.keyPress(
             client.getWindow().handle(),
-            key,
-            0,
             GLFW.GLFW_PRESS,
-            GLFW.GLFW_MOD_CONTROL
+            new net.minecraft.client.input.KeyEvent(key, 0, GLFW.GLFW_MOD_CONTROL)
         );
     }
 
