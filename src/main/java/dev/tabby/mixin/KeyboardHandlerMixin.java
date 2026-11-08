@@ -14,21 +14,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(KeyboardHandler.class)
 public abstract class KeyboardHandlerMixin {
-    @Inject(method = "keyPress(JIIII)V", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "keyPress(JILnet/minecraft/client/input/KeyEvent;)V", at = @At("HEAD"), cancellable = true)
     private void tabby$handleTabShortcuts(
         long window,
-        int key,
-        int scanCode,
         int action,
-        int modifiers,
+        net.minecraft.client.input.KeyEvent event,
         CallbackInfo ci
     ) {
         Minecraft client = Minecraft.getInstance();
-        if (window != client.getWindow().getWindow() || action != GLFW.GLFW_PRESS) {
+        if (window != client.getWindow().handle() || action != GLFW.GLFW_PRESS) {
             return;
         }
 
-        if (TabManager.handleShortcut(key, modifiers)) {
+        if (TabManager.handleShortcut(event.key(), event.modifiers())) {
             ci.cancel();
         }
     }
