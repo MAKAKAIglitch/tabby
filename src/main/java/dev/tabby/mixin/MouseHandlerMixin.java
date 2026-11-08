@@ -50,7 +50,7 @@ public abstract class MouseHandlerMixin {
     @Inject(method = "onMove(JDD)V", at = @At("HEAD"))
     private void tabby$handleTabDrag(long window, double mouseX, double mouseY, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
-        if (window == client.getWindow().getWindow()) {
+        if (window == client.getWindow().handle()) {
             TabBar.handleMouseMove(client, mouseX, mouseY);
         }
     }
