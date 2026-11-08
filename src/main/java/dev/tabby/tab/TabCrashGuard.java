@@ -70,7 +70,7 @@ final class TabCrashGuard {
                 true
             );
             SystemToast.add(
-                client.getToastManager(),
+                client.getToasts(),
                 SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
                 Component.literal("Tabby"),
                 Component.translatable("tabby.toast.background_crash", title)
