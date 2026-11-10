@@ -34,6 +34,11 @@ public final class TabbyMixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(".SimpleVoiceChatClientManagerMixin")) {
             return FabricLoader.getInstance().isModLoaded("voicechat");
         }
+        if (mixinClassName.endsWith(".BaritoneGameEventHandlerMixin")
+            || mixinClassName.endsWith(".BaritonePathingBehaviorMixin")
+            || mixinClassName.endsWith(".BaritoneInputOverrideHandlerMixin")) {
+            return FabricLoader.getInstance().isModLoaded("baritone");
+        }
         return true;
     }
 

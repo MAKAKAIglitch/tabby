@@ -47,6 +47,7 @@ public final class TabManager {
     private static final boolean SMOKE_TEST_ENABLED = "1".equals(System.getenv("TABBY_SMOKE_TEST"));
 
     private static Minecraft client;
+    private static int mainTabId = -1;
     private static int smokeTestTicks;
     private static int blockedSingleplayerWorldStartCount;
     private static final List<String> RESTORE_QUEUE = new ArrayList<>();
@@ -77,6 +78,7 @@ public final class TabManager {
             }
         }
         TabContext initial = TabContext.capture(client, TabRegistry.nextId(), "Main Menu");
+        mainTabId = initial.id();
         TabRegistry.put(initial.id(), initial);
         TabRegistry.setActiveId(initial.id());
 
@@ -917,6 +919,14 @@ public final class TabManager {
      */
     public static boolean isContextInstalled(int tabId) {
         return TabContextExecutor.isContextInstalled(client != null, TabRegistry.activeId(), tabId);
+    }
+
+    /**
+     * Baritone owns one process-global primary instance. Its callbacks and forced input
+     * must only run while the original main-tab context is installed.
+     */
+    public static boolean isBaritoneContextAllowed() {
+        return client == null || mainTabId < 0 || currentContextId() == mainTabId;
     }
 
     static int currentContextId() {

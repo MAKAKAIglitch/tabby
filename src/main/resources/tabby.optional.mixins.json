@@ -6,7 +6,10 @@
   "client": [
     "MeteorAutoBreedMixin",
     "MeteorTickEventBusMixin",
-    "SimpleVoiceChatClientManagerMixin"
+    "SimpleVoiceChatClientManagerMixin",
+    "BaritoneGameEventHandlerMixin",
+    "BaritonePathingBehaviorMixin",
+    "BaritoneInputOverrideHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 0

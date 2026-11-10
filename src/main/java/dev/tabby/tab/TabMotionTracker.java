@@ -1,14 +1,15 @@
 package dev.tabby.tab;
 
 import net.minecraft.client.multiplayer.ClientPacketListener;
-import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Prevents a hidden LocalPlayer from replaying a server velocity impulse after its
- * physics has been paused by tab switching. This only marks the local player's
- * own velocity while the owning context is hidden; active-tab knockback is untouched.
+ * Tracks server velocity impulses received while a tab is hidden.
+ *
+ * The packet has already updated that tab's LocalPlayer. Activation must preserve
+ * the velocity so the next normal player tick applies the knockback instead of
+ * silently discarding it.
  */
 final class TabMotionTracker {
     private static final Logger LOGGER = LoggerFactory.getLogger("Tabby");
@@ -65,12 +66,10 @@ final class TabMotionTracker {
 
         context.deferredBackgroundKnockback = false;
         if (context.player != null) {
-            Vec3 discardedVelocity = context.player.getDeltaMovement();
-            context.player.setDeltaMovement(Vec3.ZERO);
-            LOGGER.info(
-                "Cleared deferred background knockback before activating tab {} (velocity={})",
+            LOGGER.debug(
+                "Preserved deferred background knockback for tab {} (velocity={})",
                 context.id(),
-                discardedVelocity
+                context.player.getDeltaMovement()
             );
         } else {
             LOGGER.debug("Cleared stale knockback marker for tab {} without a current LocalPlayer", context.id());

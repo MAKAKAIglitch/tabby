@@ -24,6 +24,7 @@ The architecture separates the state boundaries that must remain correct during 
 | `ConnectionOwnershipRegistry` | Identity mapping from `Connection` / `PacketListener` to tab IDs | Disconnect policy or Minecraft field mutation |
 | `TabRendererCompatibility` | Active-renderer gate and optional Voxy reflection hooks | Tab selection or world lifecycle |
 | `TabMemoryUsage` | Cached per-tab diagnostic estimates and registry-backed stale-entry cleanup | Actual JVM heap accounting or world unloading |
+| `Baritone` optional integration | Keeps the single process-global Baritone instance, its pathing state, events and forced input bound to the original main tab | Independent Baritone instances or simulated player ticks for hidden tabs |
 
 ## Invariants
 
@@ -71,4 +72,4 @@ A RuntimeException escaping a scoped background packet/tick task is recorded wit
 
 ## Deferred movement impulses on background tabs
 
-Minecraft sends the local player velocity separately from ordinary player-position updates. Tabby observes own-player velocity and explosion-knockback packets while their tab is hidden. When that tab is selected again, only an impulse received while hidden is cleared before the first active tick, preventing the paused LocalPlayer from replaying old knockback at the moment of switching. Packets and movement in the selected tab remain untouched. The network smoke test exercises both velocity packet and explosion knockback paths.
+Minecraft sends the local player velocity separately from ordinary player-position updates. Tabby observes own-player velocity and explosion-knockback packets while a tab is hidden. The packet updates that tab's retained LocalPlayer, and Tabby preserves its delta movement when the tab is selected again; it clears only the bookkeeping marker, so the next normal active player tick applies the server-authoritative knockback. Hidden player physics is not simulated while another tab is selected. Packets and movement in the selected tab remain untouched. The network smoke test exercises both velocity-packet and explosion-knockback paths.

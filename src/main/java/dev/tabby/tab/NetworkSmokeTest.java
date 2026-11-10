@@ -168,6 +168,7 @@ public final class NetworkSmokeTest {
             validateConnections(client);
             verifyActiveWorldRecovery(client);
             verifySwitchInputDoesNotCancelKnockback();
+            verifyBaritoneMainTabOwnership();
 
             TabManager.switchTo(0);
             Screen activeScreen = client.screen;
@@ -184,7 +185,7 @@ public final class NetworkSmokeTest {
             verifyBackgroundDamageNotificationIsolation();
             verifyDamageFlashAndVitalsDefaults();
             verifyReconnectDefaults();
-            verifyDeferredBackgroundKnockbackIsNotReplayed();
+            verifyDeferredBackgroundKnockbackIsPreserved();
 
             prepareContentIsolation();
             LOGGER.info("Network smoke test: seeded different chat messages, inventory items, and named entities on both servers");
@@ -194,6 +195,35 @@ public final class NetworkSmokeTest {
             fail("Tab 1 did not join server B within " + JOIN_TIMEOUT_TICKS + " ticks: "
                 + connectionState(client, context(1)));
         }
+    }
+
+    private static void verifyBaritoneMainTabOwnership() {
+        int originalActiveId = TabManager.activeId();
+        require(originalActiveId == 0 || originalActiveId == 1,
+            "Baritone ownership test expected the two network tabs");
+
+        require(
+            TabManager.isBaritoneContextAllowed() == (originalActiveId == 0),
+            "Baritone ownership did not follow the currently installed tab"
+        );
+        TabManager.runIn(0, () ->
+            require(TabManager.isBaritoneContextAllowed(),
+                "Baritone was blocked inside its original main-tab packet context")
+        );
+        TabManager.runIn(1, () ->
+            require(!TabManager.isBaritoneContextAllowed(),
+                "Baritone was allowed to run inside the secondary-tab packet context")
+        );
+
+        TabManager.switchTo(0);
+        require(TabManager.isBaritoneContextAllowed(),
+            "Baritone was not enabled in the original main tab");
+        TabManager.switchTo(1);
+        require(!TabManager.isBaritoneContextAllowed(),
+            "Baritone followed the selected tab instead of remaining bound to main");
+
+        TabManager.switchTo(originalActiveId);
+        LOGGER.info("Network smoke test: Baritone remains bound to the original main tab across packet contexts and tab switches");
     }
 
     private static void verifySwitchInputDoesNotCancelKnockback() {
@@ -245,7 +275,7 @@ public final class NetworkSmokeTest {
         );
     }
 
-    private static void verifyDeferredBackgroundKnockbackIsNotReplayed() {
+    private static void verifyDeferredBackgroundKnockbackIsPreserved() {
         int originalActiveId = TabManager.activeId();
         TabContext active = context(originalActiveId);
         TabContext background = context(originalActiveId == 0 ? 1 : 0);
@@ -264,8 +294,8 @@ public final class NetworkSmokeTest {
             "A background velocity packet was not tagged as deferred");
 
         TabManager.switchTo(background.id());
-        require(background.player.getDeltaMovement().equals(Vec3.ZERO),
-            "A background velocity impulse was replayed when switching back to its tab");
+        require(background.player.getDeltaMovement().equals(packetVelocity),
+            "A background velocity impulse was discarded instead of being applied after the tab became active");
         require(!background.deferredBackgroundKnockback,
             "The deferred background knockback marker was not cleared on activation");
 
@@ -279,13 +309,13 @@ public final class NetworkSmokeTest {
         require(background.deferredBackgroundKnockback,
             "Background explosion knockback was not tagged as deferred");
         TabManager.switchTo(background.id());
-        require(background.player.getDeltaMovement().equals(Vec3.ZERO),
-            "A background explosion impulse was replayed when switching back to its tab");
+        require(background.player.getDeltaMovement().equals(explosionVelocity),
+            "A background explosion impulse was discarded instead of being applied after the tab became active");
         require(!background.deferredBackgroundKnockback,
             "The deferred explosion knockback marker was not cleared on activation");
 
         TabManager.switchTo(originalActiveId);
-        LOGGER.info("Network smoke test: velocity and explosion impulses received in a hidden tab are not replayed as delayed knockback on activation");
+        LOGGER.info("Network smoke test: velocity and explosion knockback received in a hidden tab are preserved for the next active player tick");
     }
 
     private static void verifyDamageFlashAndVitalsDefaults() {
