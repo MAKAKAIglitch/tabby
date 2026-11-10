@@ -1,5 +1,7 @@
 package dev.tabby.compat;
 
+import dev.tabby.tab.TabContext;
+import dev.tabby.tab.TabManager;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.nbt.CompoundTag;
 import org.slf4j.Logger;
