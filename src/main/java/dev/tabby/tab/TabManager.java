@@ -956,12 +956,19 @@ public final class TabManager {
             }
         } else {
             TabContext visible = TabRegistry.get(TabRegistry.activeId());
-            if (!hasStableBaritoneWorld(main) || !hasStableBaritoneWorld(visible)) {
+            if (!hasStableBaritoneWorld(main)
+                || visible == null
+                || visible.worldTransitioning
+                || visible.disconnecting) {
                 return;
             }
         }
 
         runIn(mainTabId, task);
+    }
+
+    public static boolean isBaritoneMainWorldStable() {
+        return hasStableBaritoneWorld(TabRegistry.get(mainTabId));
     }
 
     private static boolean hasStableBaritoneWorld(TabContext context) {

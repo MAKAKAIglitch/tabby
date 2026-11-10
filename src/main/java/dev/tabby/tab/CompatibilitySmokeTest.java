@@ -142,6 +142,9 @@ public final class CompatibilitySmokeTest {
                 "The original main tab lost its world while the second Baritone test server connected");
             require(TabManager.activeId() == 1,
                 "The secondary Baritone test server did not remain the visible tab");
+            TabManager.createTab();
+            require(TabManager.activeId() == 2 && TabManager.contexts().size() == 3,
+                "Could not create the empty tab used to verify Baritone behind a menu");
             baritoneMainTickCount = 0;
             baritoneForeignTickCount = 0;
             registerBaritoneTickProbe(client);
