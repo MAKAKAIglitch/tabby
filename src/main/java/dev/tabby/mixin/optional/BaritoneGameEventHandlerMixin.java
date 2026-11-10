@@ -4,6 +4,7 @@ import dev.tabby.tab.TabManager;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Coerce;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -16,6 +17,7 @@ import java.lang.reflect.Method;
  * Baritone has one process-global event bus. Its process ticks are scoped to the
  * original main tab, while world/player events from other tabs are rejected.
  */
+@Pseudo
 @Mixin(targets = "baritone.event.GameEventHandler", remap = false)
 public abstract class BaritoneGameEventHandlerMixin {
     private static volatile TickEventFactory tabby$tickEventFactory;
