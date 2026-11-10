@@ -8,12 +8,15 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -28,17 +31,21 @@ public final class MeteorTabIsolation {
     private static final String SYSTEMS_CLASS = "meteordevelopment.meteorclient.systems.Systems";
     private static final String MODULES_CLASS = "meteordevelopment.meteorclient.systems.modules.Modules";
     private static final String CONFIG_CLASS = "meteordevelopment.meteorclient.systems.config.Config";
+    private static final Set<String> SHARED_SYSTEMS = Set.of(
+        "meteordevelopment.meteorclient.systems.accounts.Accounts",
+        "meteordevelopment.meteorclient.systems.profiles.Profiles"
+    );
 
-    // Account credentials and the saved-profile catalogue remain shared. Game-facing
-    // settings and managers are kept separately for each Tabby client tab.
-    private static final List<String> ISOLATED_SYSTEM_ORDER = List.of(
+    // Built-in game-facing systems are restored in dependency order. Any additional
+    // serializable Systems registered by Meteor addons are added automatically before
+    // Modules, so addon state is isolated without knowing its class at compile time.
+    private static final List<String> PREFERRED_SYSTEM_ORDER = List.of(
         CONFIG_CLASS,
         "meteordevelopment.meteorclient.systems.friends.Friends",
         "meteordevelopment.meteorclient.systems.macros.Macros",
         "meteordevelopment.meteorclient.systems.waypoints.Waypoints",
         "meteordevelopment.meteorclient.systems.proxies.Proxies",
-        "meteordevelopment.meteorclient.systems.hud.Hud",
-        MODULES_CLASS
+        "meteordevelopment.meteorclient.systems.hud.Hud"
     );
 
     private static final Map<Integer, Snapshot> TAB_STATES = new HashMap<>();
@@ -172,7 +179,7 @@ public final class MeteorTabIsolation {
         Map<?, ?> systems = getMeteorSystems();
         Map<String, CompoundTag> serialized = new LinkedHashMap<>();
 
-        for (String systemClass : ISOLATED_SYSTEM_ORDER) {
+        for (String systemClass : isolationOrder(systems)) {
             Object system = findSystem(systems, systemClass);
             if (system == null) {
                 continue;
@@ -189,6 +196,43 @@ public final class MeteorTabIsolation {
         }
 
         return new Snapshot(serialized, captureActiveModules(systems));
+    }
+
+    private static List<String> isolationOrder(Map<?, ?> systems) {
+        LinkedHashSet<String> ordered = new LinkedHashSet<>();
+        Set<String> available = new HashSet<>();
+
+        for (Object key : systems.keySet()) {
+            if (key instanceof Class<?> type) {
+                available.add(type.getName());
+            }
+        }
+
+        if (available.contains(CONFIG_CLASS)) {
+            ordered.add(CONFIG_CLASS);
+        }
+        for (String systemClass : PREFERRED_SYSTEM_ORDER) {
+            if (available.contains(systemClass) && !SHARED_SYSTEMS.contains(systemClass)) {
+                ordered.add(systemClass);
+            }
+        }
+
+        // Include serializable addon Systems. A stable class-name order makes restores
+        // deterministic, while keeping the central Modules system last for activation.
+        Set<String> addonSystems = new TreeSet<>();
+        for (String systemClass : available) {
+            if (!SHARED_SYSTEMS.contains(systemClass)
+                && !MODULES_CLASS.equals(systemClass)
+                && !ordered.contains(systemClass)) {
+                addonSystems.add(systemClass);
+            }
+        }
+        ordered.addAll(addonSystems);
+
+        if (available.contains(MODULES_CLASS)) {
+            ordered.add(MODULES_CLASS);
+        }
+        return new ArrayList<>(ordered);
     }
 
     private static Set<String> captureActiveModules(Map<?, ?> systems) {
@@ -221,15 +265,10 @@ public final class MeteorTabIsolation {
 
         // Restore supporting systems before activating modules so callbacks see
         // the target tab's config, friends, waypoints, proxy selection, and HUD.
-        for (String systemClass : ISOLATED_SYSTEM_ORDER) {
-            CompoundTag tag = snapshot.systems.get(systemClass);
-            if (tag == null) {
-                continue;
-            }
-
-            Object system = findSystem(systems, systemClass);
+        for (Map.Entry<String, CompoundTag> entry : snapshot.systems.entrySet()) {
+            Object system = findSystem(systems, entry.getKey());
             if (system != null) {
-                invokeFromTag(system, copy(tag));
+                invokeFromTag(system, copy(entry.getValue()));
             }
         }
 
