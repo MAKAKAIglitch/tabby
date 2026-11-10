@@ -325,6 +325,17 @@ public final class CompatibilitySmokeTest {
             && context.networkConnection.isConnected();
     }
 
+    private static String connectionState(TabContext context) {
+        if (context == null) {
+            return "missing context";
+        }
+        return "level=" + (context.level != null)
+            + ", player=" + (context.player != null)
+            + ", connecting=" + context.connecting
+            + ", connectionLive=" + (context.networkConnection != null
+                && context.networkConnection.isConnected());
+    }
+
     private static TabContext context(int id) {
         return TabManager.contexts().stream()
             .filter(tab -> tab.id() == id)
