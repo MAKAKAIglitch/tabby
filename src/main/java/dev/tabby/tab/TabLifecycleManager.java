@@ -1,5 +1,6 @@
 package dev.tabby.tab;
 
+import dev.tabby.compat.MeteorTabIsolation;
 import dev.tabby.mixin.MinecraftAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
@@ -114,6 +115,7 @@ final class TabLifecycleManager {
         if (closing == null) {
             return;
         }
+        MeteorTabIsolation.onTabClosed(tabId);
         disposeTab(closing, true);
 
         if (TabRegistry.isEmpty()) {

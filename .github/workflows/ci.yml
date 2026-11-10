@@ -186,7 +186,7 @@ jobs:
           echo "Network/single-player client test failed (exit code: $status)."
           exit 1
 
-      - name: Verify Sodium, Iris, Lithium, and Mod Menu compatibility
+      - name: Verify Sodium, Iris, Lithium, Mod Menu, Voice Chat, Baritone, and Meteor compatibility
         shell: bash
         run: |
           set -euo pipefail
@@ -238,7 +238,7 @@ jobs:
             "https://github.com/cabaletta/baritone/releases/download/v1.13.1/baritone-standalone-fabric-1.13.1.jar" \
             "31727b5a953ff8a20e065703d4a043e5d311639c0d26351924a664fca0de8262"
 
-          for mod in sodium iris lithium modmenu voicechat baritone; do
+          for mod in sodium iris lithium modmenu voicechat baritone meteor; do
             rm -f "$mods_dir"/*.jar
             case "$mod" in
               sodium)
@@ -260,6 +260,12 @@ jobs:
                 ;;
               baritone)
                 cp "$compat_root/downloads/baritone.jar" "$mods_dir/baritone.jar"
+                ;;
+              meteor)
+                fetch_verified_mod_sha256 "meteor.jar" \
+                  "https://meteorclient.com/api/download?version=1.21.4" \
+                  "fe166e4ccc27de18c6537acc72851f432b1a4850858f1e8cac4c80240a72b4ef"
+                cp "$compat_root/downloads/meteor.jar" "$mods_dir/meteor.jar"
                 ;;
             esac
 

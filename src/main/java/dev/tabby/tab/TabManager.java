@@ -5,6 +5,7 @@ import dev.tabby.mixin.ClientLevelAccessor;
 import dev.tabby.mixin.LevelRendererAccessor;
 import dev.tabby.mixin.ParticleEngineAccessor;
 import dev.tabby.compat.SimpleVoiceChatCompatibility;
+import dev.tabby.compat.MeteorTabIsolation;
 import net.minecraft.client.KeyMapping;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.gui.screens.Screen;
@@ -790,6 +791,7 @@ public final class TabManager {
         }
 
         try {
+            MeteorTabIsolation.beforeSwitch(previous == null ? -1 : previous.id(), target.id());
             KeyMapping.releaseAll();
             if (previous != null) {
                 previous.refreshMovementInputAfterKeyRelease();
@@ -828,6 +830,7 @@ public final class TabManager {
             target.refreshMovementInputAfterKeyRelease();
             client.mouseHandler.setIgnoreFirstMove();
             target.captureFrom(client);
+            MeteorTabIsolation.afterSwitch(tabId);
             SimpleVoiceChatCompatibility.onActiveTabChanged(client);
             LOGGER.debug("Switched active tab to {} ({})", target.id(), target.title());
         } catch (RuntimeException | Error exception) {
@@ -840,6 +843,11 @@ public final class TabManager {
                 KeyMapping.releaseAll();
                 previous.refreshMovementInputAfterKeyRelease();
                 client.mouseHandler.setIgnoreFirstMove();
+                try {
+                    MeteorTabIsolation.abortSwitch(previous.id());
+                } catch (RuntimeException | Error restoreFailure) {
+                    exception.addSuppressed(restoreFailure);
+                }
             }
             throw exception;
         }

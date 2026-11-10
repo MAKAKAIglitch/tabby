@@ -1,6 +1,7 @@
 package dev.tabby.tab;
 
 import dev.tabby.compat.SimpleVoiceChatCompatibility;
+import dev.tabby.compat.MeteorTabIsolation;
 
 import dev.tabby.mixin.MinecraftAccessor;
 import net.fabricmc.loader.api.FabricLoader;
@@ -97,20 +98,28 @@ public final class CompatibilitySmokeTest {
         if (isJoined(context(0))) {
             LOGGER.info("Compatibility test for {}: network world loaded", MOD_ID);
             TabTitleDisplaySmokeTest.verify(context(0));
+            if ("meteor".equals(MOD_ID)) {
+                setMeteorModuleState("AutoBreed", true, true, 4.5);
+            }
             TabManager.createTab();
             require(TabManager.activeId() == 1, "Creating a second context did not select tab 1");
             require(TabManager.contexts().size() == 2, "Expected exactly two contexts in compatibility test");
             require(context(0).levelRenderer != context(1).levelRenderer, "Tab renderers were unexpectedly shared");
+            if ("meteor".equals(MOD_ID)) {
+                requireMeteorModuleState(true, true, 4.5);
+            }
             if ("voicechat".equals(MOD_ID)) {
                 require(
                     SimpleVoiceChatCompatibility.verifyBackgroundCallbacksAreSuppressed(0),
                     "Simple Voice Chat JOIN/DISCONNECT callbacks were not isolated from the inactive tab"
                 );
             }
-            if ("baritone".equals(MOD_ID)) {
+            if ("baritone".equals(MOD_ID) || "meteor".equals(MOD_ID)) {
                 String secondAddress = environmentValue("TABBY_SERVER_B", "127.0.0.1:25566");
                 ServerData secondServer = new ServerData(
-                    "Tabby Baritone background server",
+                    "meteor".equals(MOD_ID)
+                        ? "Tabby Meteor background server"
+                        : "Tabby Baritone background server",
                     secondAddress,
                     ServerData.Type.OTHER
                 );
@@ -122,7 +131,7 @@ public final class CompatibilitySmokeTest {
                     false,
                     null
                 );
-                LOGGER.info("Baritone compatibility test: connecting secondary tab to {}", secondAddress);
+                LOGGER.info("{} compatibility test: connecting secondary tab to {}", MOD_ID, secondAddress);
                 phase = Phase.WAIT_FOR_SECOND_WORLD;
                 phaseTicks = 0;
                 return;
@@ -141,7 +150,29 @@ public final class CompatibilitySmokeTest {
             require(isJoined(context(0)),
                 "The original main tab lost its world while the second Baritone test server connected");
             require(TabManager.activeId() == 1,
-                "The secondary Baritone test server did not remain the visible tab");
+                "The secondary compatibility test server did not remain the visible tab");
+
+            if ("meteor".equals(MOD_ID)) {
+                requireMeteorModuleState(true, true, 4.5);
+                setMeteorModuleState("AutoBreed", false, false, 8.0);
+
+                TabManager.switchTo(0);
+                requireMeteorModuleState(true, true, 4.5);
+                TabManager.switchTo(1);
+                requireMeteorModuleState(false, false, 8.0);
+                verifyMeteorBackgroundEventsAreSuppressed();
+
+                TabManager.createTab();
+                require(TabManager.activeId() == 2 && TabManager.contexts().size() == 3,
+                    "Could not create the third tab for Meteor isolation testing");
+                requireMeteorModuleState(false, false, 8.0);
+                LOGGER.info("Meteor compatibility test: module states, favorites, and settings are isolated per tab");
+                validateActiveContext(client);
+                phase = Phase.SWITCHING;
+                switchTicks = 0;
+                return;
+            }
+
             TabManager.createTab();
             require(TabManager.activeId() == 2 && TabManager.contexts().size() == 3,
                 "Could not create the empty tab used to verify Baritone behind a menu");
@@ -207,6 +238,11 @@ public final class CompatibilitySmokeTest {
 
         if (switchTicks >= REQUIRED_SWITCH_TICKS) {
             require(isJoined(context(0)), "Switching caused the compatibility test's server connection to drop");
+            if ("meteor".equals(MOD_ID)) {
+                requireMeteorModuleState(true, true, 4.5, 0);
+                requireMeteorModuleState(false, false, 8.0, 1);
+                requireMeteorModuleState(false, false, 8.0, 2);
+            }
             if ("baritone".equals(MOD_ID)) {
                 require(baritoneMainTickCount >= REQUIRED_SWITCH_TICKS / 2,
                     "Baritone did not receive enough main-tab tick callbacks while that tab was hidden ("
@@ -239,6 +275,19 @@ public final class CompatibilitySmokeTest {
             require(client.player == selected.player, "Baritone test did not restore the selected tab's player");
             require(client.getConnection() == selected.clientConnection,
                 "Baritone test did not restore the selected tab's connection");
+            return;
+        }
+
+        if ("meteor".equals(MOD_ID)) {
+            require(isJoined(menuTab), "The secondary Meteor test tab lost its world or connection");
+            require(context(2) != null, "The third Meteor test tab disappeared");
+            TabContext selected = context(TabManager.activeId());
+            require(client.level == selected.level, "Meteor did not restore the selected tab's world");
+            require(client.player == selected.player, "Meteor did not restore the selected tab's player");
+            require(client.getConnection() == selected.clientConnection,
+                "Meteor did not restore the selected tab's connection");
+            if (TabManager.activeId() == 0) requireMeteorModuleState(true, true, 4.5);
+            else requireMeteorModuleState(false, false, 8.0);
             return;
         }
 
@@ -299,10 +348,15 @@ public final class CompatibilitySmokeTest {
         if (MOD_ID.isBlank()) {
             throw new IllegalStateException("TABBY_COMPAT_MOD must identify the compatibility mod under test");
         }
+        String expectedModId = "meteor".equals(MOD_ID) ? "meteor-client" : MOD_ID;
         require(
-            FabricLoader.getInstance().isModLoaded(MOD_ID),
-            "The expected compatibility mod '" + MOD_ID + "' was not loaded"
+            FabricLoader.getInstance().isModLoaded(expectedModId),
+            "The expected compatibility mod '" + expectedModId + "' was not loaded"
         );
+        if ("meteor".equals(MOD_ID)) {
+            require(MeteorTabIsolation.isReady(),
+                "Meteor tab isolation did not find an initialized Modules system");
+        }
         if ("iris".equals(MOD_ID)) {
             require(FabricLoader.getInstance().isModLoaded("sodium"),
                 "Iris compatibility test requires its Sodium dependency to be loaded too");
@@ -317,6 +371,91 @@ public final class CompatibilitySmokeTest {
             );
         }
         LOGGER.info("Compatibility test: verified optional mod '{}' is loaded", MOD_ID);
+    }
+
+    private static void setMeteorModuleState(
+        String moduleName,
+        boolean active,
+        boolean favorite,
+        double range
+    ) {
+        try {
+            Object module = meteorModule(moduleName);
+            require(module != null, "Meteor module not found: " + moduleName);
+
+            boolean currentActive = (Boolean) module.getClass().getMethod("isActive").invoke(module);
+            if (currentActive != active) module.getClass().getMethod("toggle").invoke(module);
+
+            module.getClass().getField("favorite").setBoolean(module, favorite);
+            Object settings = module.getClass().getField("settings").get(module);
+            Object rangeSetting = settings.getClass().getMethod("get", String.class).invoke(settings, "range");
+            require(rangeSetting != null, "AutoBreed range setting was not found");
+            rangeSetting.getClass().getMethod("set", Object.class).invoke(rangeSetting, range);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Could not configure Meteor module state", exception);
+        }
+    }
+
+    private static void requireMeteorModuleState(boolean active, boolean favorite, double range) {
+        requireMeteorModuleState(active, favorite, range, TabManager.activeId());
+    }
+
+    private static void requireMeteorModuleState(
+        boolean active,
+        boolean favorite,
+        double range,
+        int tabId
+    ) {
+        try {
+            Object module = meteorModule("AutoBreed");
+            require(module != null, "Meteor AutoBreed module was not registered");
+            require(
+                ((Boolean) module.getClass().getMethod("isActive").invoke(module)) == active,
+                "Meteor AutoBreed active state leaked into tab " + tabId
+            );
+            require(
+                module.getClass().getField("favorite").getBoolean(module) == favorite,
+                "Meteor AutoBreed favorite state leaked into tab " + tabId
+            );
+
+            Object settings = module.getClass().getField("settings").get(module);
+            Object rangeSetting = settings.getClass().getMethod("get", String.class).invoke(settings, "range");
+            double actualRange = ((Number) rangeSetting.getClass().getMethod("get").invoke(rangeSetting)).doubleValue();
+            require(Math.abs(actualRange - range) < 0.0001,
+                "Meteor AutoBreed range leaked into tab " + tabId + " (actual=" + actualRange + ")");
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Could not verify Meteor module state", exception);
+        }
+    }
+
+    private static Object meteorModule(String moduleName) throws ReflectiveOperationException {
+        Class<?> modulesClass = Class.forName("meteordevelopment.meteorclient.systems.modules.Modules");
+        Object modules = modulesClass.getMethod("get").invoke(null);
+        return modulesClass.getMethod("get", String.class).invoke(modules, moduleName);
+    }
+
+    private static void verifyMeteorBackgroundEventsAreSuppressed() {
+        try {
+            Class<?> meteorClient = Class.forName("meteordevelopment.meteorclient.MeteorClient");
+            Object eventBus = meteorClient.getField("EVENT_BUS").get(null);
+            Class<?> preEvent = Class.forName("meteordevelopment.meteorclient.events.world.TickEvent$Pre");
+            Object event = preEvent.getMethod("get").invoke(null);
+            Method post = eventBus.getClass().getMethod("post", Object.class);
+
+            long before = MeteorTabIsolation.suppressedBackgroundEventCount();
+            TabManager.runIn(0, () -> {
+                try {
+                    post.invoke(eventBus, event);
+                } catch (ReflectiveOperationException exception) {
+                    throw new IllegalStateException("Could not post the Meteor background probe event", exception);
+                }
+            });
+            require(MeteorTabIsolation.suppressedBackgroundEventCount() > before,
+                "Meteor dispatched an event from a background Tabby context");
+            LOGGER.info("Meteor compatibility test: Orbit events from background contexts are suppressed");
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Could not verify Meteor background event isolation", exception);
+        }
     }
 
     private static boolean isJoined(TabContext context) {

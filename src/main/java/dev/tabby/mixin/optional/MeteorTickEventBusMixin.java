@@ -1,5 +1,7 @@
 package dev.tabby.mixin.optional;
 
+import dev.tabby.compat.MeteorTabIsolation;
+import dev.tabby.tab.TabManager;
 import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,31 @@ public abstract class MeteorTickEventBusMixin {
     @Unique
     private static boolean tabby$loggedMissingWorldTick;
 
+    @Unique
+    private static volatile Object tabby$meteorEventBus;
+
+    @Unique
+    private static volatile boolean tabby$meteorEventBusResolved;
+
+    @Unique
+    private boolean tabby$isMeteorEventBus() {
+        if (!tabby$meteorEventBusResolved) {
+            synchronized (MeteorTickEventBusMixin.class) {
+                if (!tabby$meteorEventBusResolved) {
+                    try {
+                        Class<?> meteorClient = Class.forName("meteordevelopment.meteorclient.MeteorClient");
+                        tabby$meteorEventBus = meteorClient.getField("EVENT_BUS").get(null);
+                    } catch (ReflectiveOperationException exception) {
+                        tabby$LOGGER.debug("Could not resolve Meteor's event bus", exception);
+                    } finally {
+                        tabby$meteorEventBusResolved = true;
+                    }
+                }
+            }
+        }
+        return tabby$meteorEventBus == (Object) this;
+    }
+
     @Inject(
         method = "post(Ljava/lang/Object;)Ljava/lang/Object;",
         at = @At("HEAD"),
@@ -36,7 +63,13 @@ public abstract class MeteorTickEventBusMixin {
         remap = false
     )
     private void tabby$guardMeteorWorldTick(Object event, CallbackInfoReturnable<Object> cir) {
-        if (event == null) {
+        if (event == null || !tabby$isMeteorEventBus()) {
+            return;
+        }
+
+        if (TabManager.isBackgroundContext()) {
+            MeteorTabIsolation.recordBackgroundEventSuppressed();
+            cir.setReturnValue(event);
             return;
         }
 
