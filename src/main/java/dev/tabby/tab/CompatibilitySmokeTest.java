@@ -242,6 +242,9 @@ public final class CompatibilitySmokeTest {
                 requireMeteorModuleState(true, true, 4.5, 0);
                 requireMeteorModuleState(false, false, 8.0, 1);
                 requireMeteorModuleState(false, false, 8.0, 2);
+                require(MeteorTabIsolation.backgroundTickCount() >= REQUIRED_SWITCH_TICKS / 2,
+                    "Meteor did not receive enough PRE/POST ticks in background tabs ("
+                        + MeteorTabIsolation.backgroundTickCount() + ")");
             }
             if ("baritone".equals(MOD_ID)) {
                 require(baritoneMainTickCount >= REQUIRED_SWITCH_TICKS / 2,

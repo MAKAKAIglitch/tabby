@@ -1,5 +1,6 @@
 package dev.tabby.tab;
 
+import dev.tabby.compat.MeteorTabIsolation;
 import dev.tabby.compat.SimpleVoiceChatCompatibility;
 
 import dev.tabby.mixin.MinecraftAccessor;
@@ -727,7 +728,10 @@ final class TabConnectionManager {
                 ? context.networkConnection
                 : context.pendingConnection;
             if (backgroundConnection != null) {
-                TabManager.runIn(context.id(), backgroundConnection::tick);
+                TabManager.runIn(context.id(), () -> {
+                    backgroundConnection.tick();
+                    MeteorTabIsolation.tickBackgroundTab(context.id());
+                });
             }
         }
     }

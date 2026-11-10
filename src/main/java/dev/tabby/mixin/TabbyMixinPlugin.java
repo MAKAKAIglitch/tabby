@@ -28,7 +28,8 @@ public final class TabbyMixinPlugin implements IMixinConfigPlugin {
             return FabricLoader.getInstance().isModLoaded("voxy");
         }
         if (mixinClassName.endsWith(".MeteorTickEventBusMixin")
-            || mixinClassName.endsWith(".MeteorAutoBreedMixin")) {
+            || mixinClassName.endsWith(".MeteorAutoBreedMixin")
+            || mixinClassName.endsWith(".MeteorClientTickMixin")) {
             return FabricLoader.getInstance().isModLoaded("meteor-client");
         }
         if (mixinClassName.endsWith(".SimpleVoiceChatClientManagerMixin")) {

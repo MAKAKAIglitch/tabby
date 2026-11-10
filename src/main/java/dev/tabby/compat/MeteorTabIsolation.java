@@ -54,6 +54,7 @@ public final class MeteorTabIsolation {
     private static final ThreadLocal<ArrayDeque<Integer>> TAB_STATE_SCOPES =
         ThreadLocal.withInitial(ArrayDeque::new);
     private static final AtomicLong ISOLATED_BACKGROUND_EVENTS = new AtomicLong();
+    private static final AtomicLong BACKGROUND_TICK_COUNT = new AtomicLong();
 
     private static int pendingSourceTab = -1;
     private static int pendingTargetTab = -1;
@@ -171,6 +172,53 @@ public final class MeteorTabIsolation {
         return ISOLATED_BACKGROUND_EVENTS.get();
     }
 
+    public static long backgroundTickCount() {
+        return BACKGROUND_TICK_COUNT.get();
+    }
+
+    /**
+     * Emits Meteor's normal PRE/POST tick events for a background Tabby world.
+     * The caller must already be inside TabManager.runIn(tabId), so Minecraft's
+     * singleton fields and this tab's Meteor Systems snapshot both belong to tabId.
+     */
+    public static void tickBackgroundTab(int tabId) {
+        if (!isReady()
+            || !TabManager.isBackgroundContext()
+            || TabManager.executionTabId() != tabId) {
+            return;
+        }
+
+        TabContext context = TabManager.contexts().stream()
+            .filter(tab -> tab.id() == tabId)
+            .findFirst()
+            .orElse(null);
+        if (context == null
+            || context.level == null
+            || context.player == null
+            || context.worldTransitioning
+            || context.disconnecting
+            || context.networkConnection == null
+            || !context.networkConnection.isConnected()) {
+            return;
+        }
+
+        try {
+            Class<?> meteorClient = Class.forName("meteordevelopment.meteorclient.MeteorClient");
+            Object eventBus = meteorClient.getField("EVENT_BUS").get(null);
+            Class<?> preType = Class.forName("meteordevelopment.meteorclient.events.world.TickEvent$Pre");
+            Class<?> postType = Class.forName("meteordevelopment.meteorclient.events.world.TickEvent$Post");
+            Object pre = preType.getMethod("get").invoke(null);
+            Object post = postType.getMethod("get").invoke(null);
+            Method postMethod = eventBus.getClass().getMethod("post", Object.class);
+
+            postMethod.invoke(eventBus, pre);
+            postMethod.invoke(eventBus, post);
+            BACKGROUND_TICK_COUNT.incrementAndGet();
+        } catch (ReflectiveOperationException exception) {
+            throw failure("dispatch background tick events for tab " + tabId, exception);
+        }
+    }
+
     /**
      * Installs the Meteor Systems snapshot owned by a Tabby context around all work
      * performed for that context. This includes event handlers and direct module/system
@@ -260,10 +308,6 @@ public final class MeteorTabIsolation {
         runInTabContext(ownerTab, selectedTab, () -> result[0] = dispatch.get());
         ISOLATED_BACKGROUND_EVENTS.incrementAndGet();
         return result[0];
-    }
-
-    public static long isolatedBackgroundEventCount() {
-        return ISOLATED_BACKGROUND_EVENTS.get();
     }
 
     private static boolean isMeteorLoaded() {
