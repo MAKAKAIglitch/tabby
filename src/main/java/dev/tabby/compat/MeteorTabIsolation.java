@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -50,7 +51,8 @@ public final class MeteorTabIsolation {
     );
 
     private static final Map<Integer, Snapshot> TAB_STATES = new HashMap<>();
-    private static final ThreadLocal<Boolean> EVENT_DISPATCH_SCOPE = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<ArrayDeque<Integer>> TAB_STATE_SCOPES =
+        ThreadLocal.withInitial(ArrayDeque::new);
     private static final AtomicLong ISOLATED_BACKGROUND_EVENTS = new AtomicLong();
 
     private static int pendingSourceTab = -1;
@@ -170,42 +172,46 @@ public final class MeteorTabIsolation {
     }
 
     /**
-     * Dispatch a Meteor Orbit event with the Systems snapshot owned by its packet tab.
-     * The selected tab's live Meteor state is saved first, the background tab's state
-     * is installed only for the duration of the event, and event-driven changes are
-     * captured back into that tab before the selected tab is restored.
+     * Installs the Meteor Systems snapshot owned by a Tabby context around all work
+     * performed for that context. This includes event handlers and direct module/system
+     * access made by packet callbacks.
      *
-     * Nested Orbit events stay inside the same scope so module callbacks and lifecycle
-     * handlers see one consistent Meteor client state.
+     * Nested work in the same tab reuses its scope. Nested work targeting another tab
+     * temporarily installs that tab and restores the previous Meteor state afterwards.
      */
-    public static Object dispatchBackgroundEvent(
-        int ownerTab,
-        int selectedTab,
-        Supplier<Object> dispatch
-    ) {
-        if (dispatch == null || ownerTab < 0 || selectedTab < 0 || ownerTab == selectedTab
-            || !isMeteorLoaded() || !isReady() || EVENT_DISPATCH_SCOPE.get()) {
-            return dispatch == null ? null : dispatch.get();
+    public static void runInTabContext(int ownerTab, int selectedTab, Runnable task) {
+        if (task == null) {
+            return;
+        }
+        if (ownerTab < 0 || selectedTab < 0 || !isMeteorLoaded() || !isReady()) {
+            task.run();
+            return;
         }
 
-        Snapshot selectedState = captureCurrentState();
-        TAB_STATES.put(selectedTab, selectedState);
-
-        Snapshot ownerState = TAB_STATES.get(ownerTab);
-        if (ownerState == null) {
-            ownerState = selectedState.copy();
-            TAB_STATES.put(ownerTab, ownerState);
+        ArrayDeque<Integer> scopes = TAB_STATE_SCOPES.get();
+        int currentScopedTab = scopes.isEmpty() ? -1 : scopes.peek();
+        if (currentScopedTab == ownerTab || (currentScopedTab < 0 && ownerTab == selectedTab)) {
+            task.run();
+            return;
         }
 
-        EVENT_DISPATCH_SCOPE.set(true);
+        int restoreTab = currentScopedTab >= 0 ? currentScopedTab : selectedTab;
+        Snapshot restoreState = captureCurrentState();
+        TAB_STATES.put(restoreTab, restoreState);
+
+        Snapshot targetState = TAB_STATES.get(ownerTab);
+        if (targetState == null) {
+            targetState = restoreState.copy();
+            TAB_STATES.put(ownerTab, targetState);
+        }
+
+        scopes.push(ownerTab);
         try {
-            applyState(ownerState);
-            Object result = dispatch.get();
+            applyState(targetState);
+            task.run();
 
-            // Persist changes made by modules and Meteor Systems during the event.
+            // Save direct API changes and event-driven changes back into this tab.
             TAB_STATES.put(ownerTab, captureCurrentState());
-            ISOLATED_BACKGROUND_EVENTS.incrementAndGet();
-            return result;
         } catch (RuntimeException | Error exception) {
             try {
                 TAB_STATES.put(ownerTab, captureCurrentState());
@@ -215,18 +221,49 @@ public final class MeteorTabIsolation {
             throw exception;
         } finally {
             try {
-                applyState(selectedState);
+                applyState(restoreState);
             } catch (RuntimeException | Error restoreFailure) {
                 LOGGER.error(
-                    "Failed to restore selected Meteor tab {} after a background event",
-                    selectedTab,
+                    "Failed to restore Meteor state for tab {} after running tab {}",
+                    restoreTab,
+                    ownerTab,
                     restoreFailure
                 );
                 throw restoreFailure;
             } finally {
-                EVENT_DISPATCH_SCOPE.remove();
+                scopes.pop();
+                if (scopes.isEmpty()) {
+                    TAB_STATE_SCOPES.remove();
+                }
             }
         }
+    }
+
+    /**
+     * Keeps the EventBus wrapper safe for posts not already running inside TabManager.runIn.
+     * When a packet scope is already installed, this reuses that same scope.
+     */
+    public static Object dispatchBackgroundEvent(
+        int ownerTab,
+        int selectedTab,
+        Supplier<Object> dispatch
+    ) {
+        if (dispatch == null) {
+            return null;
+        }
+
+        if (ownerTab < 0 || selectedTab < 0 || ownerTab == selectedTab || !isMeteorLoaded() || !isReady()) {
+            return dispatch.get();
+        }
+
+        Object[] result = new Object[1];
+        runInTabContext(ownerTab, selectedTab, () -> result[0] = dispatch.get());
+        ISOLATED_BACKGROUND_EVENTS.incrementAndGet();
+        return result[0];
+    }
+
+    public static long isolatedBackgroundEventCount() {
+        return ISOLATED_BACKGROUND_EVENTS.get();
     }
 
     private static boolean isMeteorLoaded() {

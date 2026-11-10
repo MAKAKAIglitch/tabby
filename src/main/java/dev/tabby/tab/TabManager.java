@@ -869,7 +869,14 @@ public final class TabManager {
     }
 
     public static void runIn(int tabId, Runnable task) {
-        TabContextExecutor.runIn(client, TabRegistry.activeId(), TabRegistry.view(), tabId, task);
+        int selectedTab = TabRegistry.activeId();
+        TabContextExecutor.runIn(
+            client,
+            selectedTab,
+            TabRegistry.view(),
+            tabId,
+            () -> MeteorTabIsolation.runInTabContext(tabId, selectedTab, task)
+        );
     }
 
     /**

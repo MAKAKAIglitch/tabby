@@ -455,26 +455,24 @@ public final class CompatibilitySmokeTest {
         boolean[] eventSawMainTab = {false};
         long before = MeteorTabIsolation.isolatedBackgroundEventCount();
         TabManager.runIn(0, () -> {
-            Object result = MeteorTabIsolation.dispatchBackgroundEvent(0, selectedTab, () -> {
-                require(client.level == context(0).level && client.player == context(0).player,
-                    "Meteor background event did not install its owning tab's Minecraft context");
-                setMeteorModuleState("AutoBreed", false, false, 9.0);
-                try {
-                    Object returned = post.invoke(eventBus, event);
-                    eventSawMainTab[0] = returned == event;
-                    return returned;
-                } catch (ReflectiveOperationException exception) {
-                    throw new IllegalStateException("Could not dispatch a Meteor event in the owning tab", exception);
-                }
-            });
-            require(result == event, "Meteor background event return value was not preserved");
+            require(client.level == context(0).level && client.player == context(0).player,
+                "Meteor packet scope did not install the background tab's Minecraft context");
+            setMeteorModuleState("AutoBreed", false, false, 9.0);
+            try {
+                Object returned = post.invoke(eventBus, event);
+                eventSawMainTab[0] = returned == event;
+            } catch (ReflectiveOperationException exception) {
+                throw new IllegalStateException("Could not dispatch a Meteor event in the owning tab", exception);
+            }
+            require(client.level == context(0).level && client.player == context(0).player,
+                "Meteor event dispatch changed its owning Minecraft context");
         });
 
         require(eventSawMainTab[0], "Meteor event did not execute inside its owning tab scope");
         require(MeteorTabIsolation.isolatedBackgroundEventCount() > before,
-            "Meteor background event did not enter the per-tab Systems scope");
+            "Meteor Orbit event did not use the owning tab's Systems scope");
         require(client.level == context(selectedTab).level && client.player == context(selectedTab).player,
-            "Meteor background event failed to restore the selected Minecraft context");
+            "Meteor background packet scope failed to restore the selected Minecraft context");
         requireMeteorModuleState(false, false, 8.0, selectedTab);
 
         TabManager.switchTo(0);
@@ -483,7 +481,7 @@ public final class CompatibilitySmokeTest {
         TabManager.switchTo(selectedTab);
         requireMeteorModuleState(false, false, 8.0, selectedTab);
 
-        LOGGER.info("Meteor compatibility test: a background event updated only its owning tab and restored the selected tab");
+        LOGGER.info("Meteor compatibility test: background packet and Orbit event work updated only their owning tab");
     }
 
 

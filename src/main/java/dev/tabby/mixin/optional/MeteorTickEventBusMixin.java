@@ -14,12 +14,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Coerce;
 
 /**
- * Prevents Meteor's game-tick handlers from running while the active client has no world.
- *
- * Meteor modules such as AutoBreed and Nametags can dereference mc.level from their
- * tick callbacks without checking for a title-screen or disconnect state. Since Tabby
- * permits a title-screen tab while another tab remains connected, skip only Meteor's
- * TickEvent.Pre/Post dispatch until an active world is available again.
+ * Keeps Meteor's single Orbit event bus aligned with the Tabby client context that owns
+ * the event. Background packet events are dispatched against that tab's independent
+ * Meteor Systems snapshot; menu/disconnect world ticks remain guarded.
  *
  * This mixin is optional and has no compile-time dependency on Meteor or Orbit.
  */
