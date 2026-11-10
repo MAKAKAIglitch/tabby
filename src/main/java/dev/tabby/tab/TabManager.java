@@ -992,6 +992,11 @@ public final class TabManager {
         return TabContextExecutor.currentContextId(TabRegistry.activeId());
     }
 
+    /** Returns the tab whose Minecraft fields are currently installed on this thread. */
+    public static int executionTabId() {
+        return currentContextId();
+    }
+
     public static int activeId() {
         return TabRegistry.activeId();
     }

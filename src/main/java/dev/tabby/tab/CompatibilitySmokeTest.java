@@ -160,7 +160,7 @@ public final class CompatibilitySmokeTest {
                 requireMeteorModuleState(true, true, 4.5);
                 TabManager.switchTo(1);
                 requireMeteorModuleState(false, false, 8.0);
-                verifyMeteorBackgroundEventsAreSuppressed();
+                verifyMeteorBackgroundEventsUseOwningTabState(client);
 
                 TabManager.createTab();
                 require(TabManager.activeId() == 2 && TabManager.contexts().size() == 3,
@@ -434,29 +434,58 @@ public final class CompatibilitySmokeTest {
         return modulesClass.getMethod("get", String.class).invoke(modules, moduleName);
     }
 
-    private static void verifyMeteorBackgroundEventsAreSuppressed() {
+    private static void verifyMeteorBackgroundEventsUseOwningTabState(Minecraft client) {
+        int selectedTab = TabManager.activeId();
+        require(selectedTab == 1,
+            "Meteor event isolation test expected the secondary tab to be selected");
+
+        Object eventBus;
+        Object event;
+        Method post;
         try {
             Class<?> meteorClient = Class.forName("meteordevelopment.meteorclient.MeteorClient");
-            Object eventBus = meteorClient.getField("EVENT_BUS").get(null);
+            eventBus = meteorClient.getField("EVENT_BUS").get(null);
             Class<?> preEvent = Class.forName("meteordevelopment.meteorclient.events.world.TickEvent$Pre");
-            Object event = preEvent.getMethod("get").invoke(null);
-            Method post = eventBus.getClass().getMethod("post", Object.class);
+            event = preEvent.getMethod("get").invoke(null);
+            post = eventBus.getClass().getMethod("post", Object.class);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Could not prepare the Meteor event-isolation probe", exception);
+        }
 
-            long before = MeteorTabIsolation.suppressedBackgroundEventCount();
-            TabManager.runIn(0, () -> {
+        boolean[] eventSawMainTab = {false};
+        long before = MeteorTabIsolation.isolatedBackgroundEventCount();
+        TabManager.runIn(0, () -> {
+            Object result = MeteorTabIsolation.dispatchBackgroundEvent(0, selectedTab, () -> {
+                require(client.level == context(0).level && client.player == context(0).player,
+                    "Meteor background event did not install its owning tab's Minecraft context");
+                setMeteorModuleState("AutoBreed", false, false, 9.0);
                 try {
-                    post.invoke(eventBus, event);
+                    Object returned = post.invoke(eventBus, event);
+                    eventSawMainTab[0] = returned == event;
+                    return returned;
                 } catch (ReflectiveOperationException exception) {
-                    throw new IllegalStateException("Could not post the Meteor background probe event", exception);
+                    throw new IllegalStateException("Could not dispatch a Meteor event in the owning tab", exception);
                 }
             });
-            require(MeteorTabIsolation.suppressedBackgroundEventCount() > before,
-                "Meteor dispatched an event from a background Tabby context");
-            LOGGER.info("Meteor compatibility test: Orbit events from background contexts are suppressed");
-        } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("Could not verify Meteor background event isolation", exception);
-        }
+            require(result == event, "Meteor background event return value was not preserved");
+        });
+
+        require(eventSawMainTab[0], "Meteor event did not execute inside its owning tab scope");
+        require(MeteorTabIsolation.isolatedBackgroundEventCount() > before,
+            "Meteor background event did not enter the per-tab Systems scope");
+        require(client.level == context(selectedTab).level && client.player == context(selectedTab).player,
+            "Meteor background event failed to restore the selected Minecraft context");
+        requireMeteorModuleState(false, false, 8.0, selectedTab);
+
+        TabManager.switchTo(0);
+        requireMeteorModuleState(false, false, 9.0, 0);
+        setMeteorModuleState("AutoBreed", true, true, 4.5);
+        TabManager.switchTo(selectedTab);
+        requireMeteorModuleState(false, false, 8.0, selectedTab);
+
+        LOGGER.info("Meteor compatibility test: a background event updated only its owning tab and restored the selected tab");
     }
+
 
     private static boolean isJoined(TabContext context) {
         return context != null

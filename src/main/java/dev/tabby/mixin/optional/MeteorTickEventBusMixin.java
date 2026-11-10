@@ -2,6 +2,8 @@ package dev.tabby.mixin.optional;
 
 import dev.tabby.compat.MeteorTabIsolation;
 import dev.tabby.tab.TabManager;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,8 +11,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.Coerce;
 
 /**
  * Prevents Meteor's game-tick handlers from running while the active client has no world.
@@ -56,41 +57,40 @@ public abstract class MeteorTickEventBusMixin {
         return tabby$meteorEventBus == (Object) this;
     }
 
-    @Inject(
-        method = "post(Ljava/lang/Object;)Ljava/lang/Object;",
-        at = @At("HEAD"),
-        cancellable = true,
-        remap = false
-    )
-    private void tabby$guardMeteorWorldTick(Object event, CallbackInfoReturnable<Object> cir) {
+    @WrapMethod(method = "post(Ljava/lang/Object;)Ljava/lang/Object;")
+    private Object tabby$dispatchMeteorEventInOwningTab(@Coerce Object event, Operation<Object> original) {
         if (event == null || !tabby$isMeteorEventBus()) {
-            return;
-        }
-
-        if (TabManager.isBackgroundContext()) {
-            MeteorTabIsolation.recordBackgroundEventSuppressed();
-            cir.setReturnValue(event);
-            return;
+            return original.call(event);
         }
 
         String eventClass = event.getClass().getName();
-        if (!eventClass.equals("meteordevelopment.meteorclient.events.world.TickEvent$Pre")
-            && !eventClass.equals("meteordevelopment.meteorclient.events.world.TickEvent$Post")) {
-            return;
-        }
+        boolean isWorldTick = eventClass.equals("meteordevelopment.meteorclient.events.world.TickEvent$Pre")
+            || eventClass.equals("meteordevelopment.meteorclient.events.world.TickEvent$Post");
 
-        if (Minecraft.getInstance().level != null) {
+        // Some Meteor modules dereference the world during menu/disconnect ticks.
+        // Do not dispatch these events when the currently installed context has no world.
+        if (isWorldTick && Minecraft.getInstance().level == null) {
+            if (!tabby$loggedMissingWorldTick) {
+                tabby$LOGGER.debug("Skipping Meteor tick event because no installed Minecraft world is loaded");
+                tabby$loggedMissingWorldTick = true;
+            }
+            return event;
+        }
+        if (isWorldTick) {
             tabby$loggedMissingWorldTick = false;
-            return;
         }
 
-        if (!tabby$loggedMissingWorldTick) {
-            tabby$LOGGER.debug("Skipping Meteor tick event because no active Minecraft world is loaded");
-            tabby$loggedMissingWorldTick = true;
+        int ownerTab = TabManager.executionTabId();
+        int selectedTab = TabManager.activeId();
+        if (ownerTab == selectedTab) {
+            return original.call(event);
         }
 
-        // EventBus.post(T) returns its input event. Returning it unchanged preserves
-        // EventBus semantics while preventing world-dependent Meteor handlers from running.
-        cir.setReturnValue(event);
+        return MeteorTabIsolation.dispatchBackgroundEvent(
+            ownerTab,
+            selectedTab,
+            () -> original.call(event)
+        );
     }
+
 }
