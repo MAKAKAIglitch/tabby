@@ -168,7 +168,7 @@ public final class NetworkSmokeTest {
             validateConnections(client);
             verifyActiveWorldRecovery(client);
             verifySwitchInputDoesNotCancelKnockback();
-            verifyBaritoneMainTabOwnership();
+            verifyBaritoneMainTabOwnership(client);
 
             TabManager.switchTo(0);
             Screen activeScreen = client.screen;
@@ -197,33 +197,42 @@ public final class NetworkSmokeTest {
         }
     }
 
-    private static void verifyBaritoneMainTabOwnership() {
+    private static void verifyBaritoneMainTabOwnership(Minecraft client) {
         int originalActiveId = TabManager.activeId();
+        TabContext main = context(0);
+        TabContext secondary = context(1);
         require(originalActiveId == 0 || originalActiveId == 1,
             "Baritone ownership test expected the two network tabs");
-
-        require(
-            TabManager.isBaritoneContextAllowed() == (originalActiveId == 0),
-            "Baritone ownership did not follow the currently installed tab"
-        );
-        TabManager.runIn(0, () ->
-            require(TabManager.isBaritoneContextAllowed(),
-                "Baritone was blocked inside its original main-tab packet context")
-        );
-        TabManager.runIn(1, () ->
-            require(!TabManager.isBaritoneContextAllowed(),
-                "Baritone was allowed to run inside the secondary-tab packet context")
-        );
+        require(isJoined(main) && isJoined(secondary),
+            "Baritone ownership test requires two live player/world contexts");
 
         TabManager.switchTo(0);
         require(TabManager.isBaritoneContextAllowed(),
-            "Baritone was not enabled in the original main tab");
+            "Baritone was not enabled in its original main tab");
+        TabManager.runIn(1, () ->
+            require(!TabManager.isBaritoneContextAllowed(),
+                "Baritone was allowed inside the secondary-tab packet context")
+        );
+
         TabManager.switchTo(1);
         require(!TabManager.isBaritoneContextAllowed(),
             "Baritone followed the selected tab instead of remaining bound to main");
 
+        boolean[] tickExecuted = {false};
+        TabManager.runBaritoneTickInMain(() -> {
+            tickExecuted[0] = true;
+            require(TabManager.isBaritoneContextAllowed(),
+                "A hidden Baritone tick did not install the original main-tab context");
+            require(client.level == main.level && client.player == main.player,
+                "A hidden Baritone tick observed the secondary tab's player or world");
+        });
+        require(tickExecuted[0],
+            "Baritone's background tick was skipped while both tabs had live worlds");
+        require(client.level == secondary.level && client.player == secondary.player,
+            "The visible secondary context was not restored after the Baritone tick");
+
         TabManager.switchTo(originalActiveId);
-        LOGGER.info("Network smoke test: Baritone remains bound to the original main tab across packet contexts and tab switches");
+        LOGGER.info("Network smoke test: Baritone tick executes against main in the background and restores the visible tab");
     }
 
     private static void verifySwitchInputDoesNotCancelKnockback() {

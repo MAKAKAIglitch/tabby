@@ -32,6 +32,7 @@ public final class CompatibilitySmokeTest {
     private enum Phase {
         CONNECT,
         WAIT_FOR_WORLD,
+        WAIT_FOR_SECOND_WORLD,
         SWITCHING
     }
 
@@ -39,6 +40,8 @@ public final class CompatibilitySmokeTest {
     private static int phaseTicks;
     private static int switchTicks;
     private static boolean modVerified;
+    private static int baritoneMainTickCount;
+    private static int baritoneForeignTickCount;
 
     private CompatibilitySmokeTest() {
     }
@@ -55,6 +58,7 @@ public final class CompatibilitySmokeTest {
         switch (phase) {
             case CONNECT -> beginConnection(client);
             case WAIT_FOR_WORLD -> waitForWorld(client);
+            case WAIT_FOR_SECOND_WORLD -> waitForSecondWorld(client);
             case SWITCHING -> exerciseWorldSwitching(client);
         }
     }
@@ -103,11 +107,89 @@ public final class CompatibilitySmokeTest {
                     "Simple Voice Chat JOIN/DISCONNECT callbacks were not isolated from the inactive tab"
                 );
             }
+            if ("baritone".equals(MOD_ID)) {
+                String secondAddress = environmentValue("TABBY_SERVER_B", "127.0.0.1:25566");
+                ServerData secondServer = new ServerData(
+                    "Tabby Baritone background server",
+                    secondAddress,
+                    ServerData.Type.OTHER
+                );
+                ConnectScreen.startConnecting(
+                    client.screen,
+                    client,
+                    ServerAddress.parseString(secondAddress),
+                    secondServer,
+                    false,
+                    null
+                );
+                LOGGER.info("Baritone compatibility test: connecting secondary tab to {}", secondAddress);
+                phase = Phase.WAIT_FOR_SECOND_WORLD;
+                phaseTicks = 0;
+                return;
+            }
             validateActiveContext(client);
             phase = Phase.SWITCHING;
             switchTicks = 0;
         } else if (phaseTicks > JOIN_TIMEOUT_TICKS) {
             throw new IllegalStateException("Compatibility test timed out waiting for world; mod=" + MOD_ID);
+        }
+    }
+
+    private static void waitForSecondWorld(Minecraft client) {
+        phaseTicks++;
+        if (isJoined(context(1))) {
+            require(isJoined(context(0)),
+                "The original main tab lost its world while the second Baritone test server connected");
+            require(TabManager.activeId() == 1,
+                "The secondary Baritone test server did not remain the visible tab");
+            baritoneMainTickCount = 0;
+            baritoneForeignTickCount = 0;
+            registerBaritoneTickProbe(client);
+            validateActiveContext(client);
+            LOGGER.info("Baritone compatibility test: both tab worlds are live; observing background main-tab ticks");
+            phase = Phase.SWITCHING;
+            switchTicks = 0;
+        } else if (phaseTicks > JOIN_TIMEOUT_TICKS) {
+            throw new IllegalStateException(
+                "Baritone compatibility test timed out waiting for the secondary world: "
+                    + connectionState(context(1))
+            );
+        }
+    }
+
+    private static void registerBaritoneTickProbe(Minecraft client) {
+        try {
+            Class<?> apiClass = Class.forName("baritone.api.BaritoneAPI");
+            Object provider = apiClass.getMethod("getProvider").invoke(null);
+            Object primary = provider.getClass().getMethod("getPrimaryBaritone").invoke(provider);
+            Object eventBus = primary.getClass().getMethod("getGameEventHandler").invoke(primary);
+            Class<?> listenerType = Class.forName("baritone.api.event.listener.IGameEventListener");
+            Object probe = Proxy.newProxyInstance(
+                listenerType.getClassLoader(),
+                new Class<?>[]{listenerType},
+                (proxy, method, arguments) -> {
+                    if ("onTick".equals(method.getName())) {
+                        TabContext main = context(0);
+                        if (TabManager.isBaritoneContextAllowed()
+                            && main != null
+                            && client.level == main.level
+                            && client.player == main.player) {
+                            baritoneMainTickCount++;
+                        } else {
+                            baritoneForeignTickCount++;
+                        }
+                    }
+                    if ("toString".equals(method.getName())) return "TabbyBaritoneMainTabProbe";
+                    if ("hashCode".equals(method.getName())) return System.identityHashCode(proxy);
+                    if ("equals".equals(method.getName())) return proxy == arguments[0];
+                    return null;
+                }
+            );
+            eventBus.getClass()
+                .getMethod("registerEventListener", listenerType)
+                .invoke(eventBus, probe);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Could not register the Baritone background-tick probe", exception);
         }
     }
 
@@ -122,6 +204,14 @@ public final class CompatibilitySmokeTest {
 
         if (switchTicks >= REQUIRED_SWITCH_TICKS) {
             require(isJoined(context(0)), "Switching caused the compatibility test's server connection to drop");
+            if ("baritone".equals(MOD_ID)) {
+                require(baritoneMainTickCount >= REQUIRED_SWITCH_TICKS / 2,
+                    "Baritone did not receive enough main-tab tick callbacks while that tab was hidden ("
+                        + baritoneMainTickCount + ")");
+                require(baritoneForeignTickCount == 0,
+                    "Baritone tick callbacks ran against a non-main Tabby context ("
+                        + baritoneForeignTickCount + ")");
+            }
             LOGGER.info(
                 "Tabby compatibility smoke test passed for {}: world rendering and six context switches completed.",
                 MOD_ID
@@ -138,6 +228,16 @@ public final class CompatibilitySmokeTest {
         require(networkTab.levelRenderer != menuTab.levelRenderer, "The two tabs share a LevelRenderer");
         require(client.levelRenderer == context(TabManager.activeId()).levelRenderer,
             "Minecraft.levelRenderer does not match the active tab");
+
+        if ("baritone".equals(MOD_ID)) {
+            require(isJoined(menuTab), "The secondary Baritone test tab lost its world or connection");
+            TabContext selected = context(TabManager.activeId());
+            require(client.level == selected.level, "Baritone test did not restore the selected tab's world");
+            require(client.player == selected.player, "Baritone test did not restore the selected tab's player");
+            require(client.getConnection() == selected.clientConnection,
+                "Baritone test did not restore the selected tab's connection");
+            return;
+        }
 
         if (TabManager.activeId() == 0) {
             require(client.level == networkTab.level, "Active network level was not restored");

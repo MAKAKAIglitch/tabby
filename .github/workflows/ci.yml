@@ -203,6 +203,15 @@ jobs:
             printf '%s  %s\n' "$expected_sha512" "$output" | sha512sum --check -
           }
 
+          fetch_verified_mod_sha256() {
+            local filename="$1"
+            local url="$2"
+            local expected_sha256="$3"
+            local output="$compat_root/downloads/$filename"
+            curl -fL --retry 3 "$url" -o "$output"
+            printf '%s  %s\n' "$expected_sha256" "$output" | sha256sum --check -
+          }
+
           fetch_verified_mod "sodium.jar" \
             "https://cdn.modrinth.com/data/AANobbMI/versions/c3YkZvne/sodium-fabric-0.6.13%2Bmc1.21.4.jar" \
             "2c72ca2ddfd27e29ff6c24fccdf6f3d80857bd1014c707017f96cb4a424f94918e53ba21d85f22e3c9171803f8d2c12c99ae857d38d8e85546cc65960b95a2f1"
@@ -224,7 +233,12 @@ jobs:
           voicechat_sha512="$(jq -er '.files[] | select(.primary == true) | .hashes.sha512' "$voicechat_version_json")"
           fetch_verified_mod "voicechat.jar" "$voicechat_url" "$voicechat_sha512"
 
-          for mod in sodium iris lithium modmenu voicechat; do
+          # Official Baritone 1.13.1 Fabric build for Minecraft 1.21.4.
+          fetch_verified_mod_sha256 "baritone.jar" \
+            "https://github.com/cabaletta/baritone/releases/download/v1.13.1/baritone-standalone-fabric-1.13.1.jar" \
+            "31727b5a953ff8a20e065703d4a043e5d311639c0d26351924a664fca0de8262"
+
+          for mod in sodium iris lithium modmenu voicechat baritone; do
             rm -f "$mods_dir"/*.jar
             case "$mod" in
               sodium)
@@ -244,12 +258,16 @@ jobs:
               voicechat)
                 cp "$compat_root/downloads/voicechat.jar" "$mods_dir/voicechat.jar"
                 ;;
+              baritone)
+                cp "$compat_root/downloads/baritone.jar" "$mods_dir/baritone.jar"
+                ;;
             esac
 
             log="$compat_root/$mod.log"
             echo "Running compatibility smoke test with $mod..."
             set +e
             timeout 180s env ALSOFT_DRIVERS=null TABBY_COMPAT_SMOKE_TEST=1 TABBY_COMPAT_MOD="$mod" \
+              TABBY_SERVER_A=127.0.0.1:25565 TABBY_SERVER_B=127.0.0.1:25566 \
               xvfb-run -a ./gradlew runClient 2>&1 | tee "$log"
             status=${PIPESTATUS[0]}
             set -e

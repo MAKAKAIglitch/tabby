@@ -24,7 +24,7 @@ The architecture separates the state boundaries that must remain correct during 
 | `ConnectionOwnershipRegistry` | Identity mapping from `Connection` / `PacketListener` to tab IDs | Disconnect policy or Minecraft field mutation |
 | `TabRendererCompatibility` | Active-renderer gate and optional Voxy reflection hooks | Tab selection or world lifecycle |
 | `TabMemoryUsage` | Cached per-tab diagnostic estimates and registry-backed stale-entry cleanup | Actual JVM heap accounting or world unloading |
-| `Baritone` optional integration | Keeps the single process-global Baritone instance, its pathing state, events and forced input bound to the original main tab | Independent Baritone instances or simulated player ticks for hidden tabs |
+| `Baritone` optional integration | Runs the primary Baritone PRE/POST process callbacks inside the original main-tab context, keeps packet/world events owned by that tab, and blocks forced input from leaking to other tabs | Independent Baritone instances or hidden LocalPlayer physics simulation |
 
 ## Invariants
 
@@ -73,3 +73,7 @@ A RuntimeException escaping a scoped background packet/tick task is recorded wit
 ## Deferred movement impulses on background tabs
 
 Minecraft sends the local player velocity separately from ordinary player-position updates. Tabby observes own-player velocity and explosion-knockback packets while a tab is hidden. The packet updates that tab's retained LocalPlayer, and Tabby preserves its delta movement when the tab is selected again; it clears only the bookkeeping marker, so the next normal active player tick applies the server-authoritative knockback. Hidden player physics is not simulated while another tab is selected. Packets and movement in the selected tab remain untouched. The network smoke test exercises both velocity-packet and explosion-knockback paths.
+
+## Baritone process ticks in a background main tab
+
+Baritone's Fabric 1.21.4 integration uses one process-global `Minecraft` reference. Tabby's optional Baritone bridge therefore wraps Baritone's `GameEventHandler.onTick` and `onPostTick` calls in the original main-tab context. When another connected tab is selected, these process callbacks still see the main tab's player, world, renderer and connection state. They are skipped during world transitions or when the visible tab has no stable player/world, so a menu tab cannot generate an `OUT` event that cancels the main tab's path. Other Baritone events are accepted only when their owning context is main. The hidden LocalPlayer's ordinary Minecraft physics is not simulated; movement input is retained on that player and is consumed when the main tab is selected again. CI runs the pinned Baritone Fabric 1.13.1 release for Minecraft 1.21.4 and observes actual background `onTick` callbacks.
