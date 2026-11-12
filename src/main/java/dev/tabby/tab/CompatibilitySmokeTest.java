@@ -106,6 +106,7 @@ public final class CompatibilitySmokeTest {
             require(TabManager.activeId() == 1, "Creating a second context did not select tab 1");
             require(TabManager.contexts().size() == 2, "Expected exactly two contexts in compatibility test");
             require(context(0).levelRenderer != context(1).levelRenderer, "Tab renderers were unexpectedly shared");
+            verifyVoxyCreationPolicy();
             if ("meteor".equals(MOD_ID)) {
                 requireMeteorModuleState(true, true, 4.5);
             }
@@ -271,6 +272,7 @@ public final class CompatibilitySmokeTest {
         require(networkTab.levelRenderer != menuTab.levelRenderer, "The two tabs share a LevelRenderer");
         require(client.levelRenderer == context(TabManager.activeId()).levelRenderer,
             "Minecraft.levelRenderer does not match the active tab");
+        verifyVoxyCreationPolicy();
 
         if ("baritone".equals(MOD_ID)) {
             require(isJoined(menuTab), "The secondary Baritone test tab lost its world or connection");
@@ -488,6 +490,39 @@ public final class CompatibilitySmokeTest {
         LOGGER.info("Meteor compatibility test: background packet and Orbit event work updated only their owning tab");
     }
 
+
+    private static void verifyVoxyCreationPolicy() {
+        int activeId = TabManager.activeId();
+        TabContext active = context(activeId);
+        require(active != null, "Voxy policy test could not find the active tab");
+
+        for (TabContext candidate : TabManager.contexts()) {
+            boolean shouldDefer = TabRendererCompatibility.shouldDeferVoxyRendererCreation(
+                candidate.levelRenderer,
+                true,
+                activeId,
+                active,
+                false
+            );
+            boolean expected = candidate != active || active.level == null;
+            require(
+                shouldDefer == expected,
+                "Voxy creation policy mismatch for tab " + candidate.id()
+                    + " (activeTab=" + activeId + ", activeWorldLoaded=" + (active.level != null) + ")"
+            );
+        }
+
+        require(
+            TabRendererCompatibility.shouldDeferVoxyRendererCreation(
+                active.levelRenderer,
+                true,
+                activeId,
+                active,
+                true
+            ),
+            "Voxy creation was allowed while executing a background tab context"
+        );
+    }
 
     private static boolean isJoined(TabContext context) {
         return context != null

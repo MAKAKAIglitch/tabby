@@ -44,7 +44,12 @@ final class TabRendererCompatibility {
         if (backgroundContext) {
             return true;
         }
-        return active != null && active.levelRenderer != null && active.levelRenderer != renderer;
+        // Voxy's geometry buffer is useful only while a real world is selected.
+        // Empty tabs must not recreate a renderer for a previous world's LevelRenderer.
+        if (active == null || active.level == null || active.levelRenderer == null) {
+            return true;
+        }
+        return active.levelRenderer != renderer;
     }
 
     static void suspendVoxyRenderer(LevelRenderer renderer, int tabId) {

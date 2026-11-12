@@ -522,6 +522,11 @@ public final class TabManager {
             context.worldTransitioning = false;
             context.worldTransitionTicks = 0;
         }
+        // Defer Voxy creation until the owning TabContext has the installed world.
+        // A background login stays suspended until that tab is selected.
+        if (ownerId == TabRegistry.activeId() && !isBackgroundContext()) {
+            TabRendererCompatibility.resumeVoxyRenderer(context.levelRenderer, context.level, context.id());
+        }
         LOGGER.info("Tabby: world transition completed in tab {}", context.id());
     }
 
